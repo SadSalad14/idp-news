@@ -1,0 +1,31 @@
+# ── Dependências ─────────────────────────────────────────────────────────────
+node_modules/
+package-lock.json
+
+# ── Configuração local (contém suas credenciais reais) ────────────────────────
+# Use js/config.example.js como template e crie o seu próprio js/config.js
+# O config.js NÃO deve ser commitado se contiver chaves privadas (Admin SDK, etc.)
+# Nota: as chaves Firebase web (apiKey, appId…) são publicas por design —
+# a segurança vem das Firestore Rules. Veja os comentários em js/config.js.
+js/config.js
+
+# ── Firebase CLI ──────────────────────────────────────────────────────────────
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# ── Arquivos de sistema ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editores ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
