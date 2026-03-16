@@ -25,7 +25,7 @@ Este projeto nasceu como uma plataforma independente de jornalismo comunitário 
 | Sistema de votação com peso por proximidade (Haversine) | ✅ Implementado |
 | Verificação comunitária (status: averiguar / verificada) | ✅ Implementado |
 | Autenticação com e-mail e senha | ✅ Implementado |
-| reCAPTCHA v2 nos formulários | ✅ Implementado |
+| reCAPTCHA v2 nos formulários | 🗓️ Planejado |
 | Sistema de reputação de usuários | ✅ Implementado |
 | Report de abuso com limite automático | ✅ Implementado |
 | Cache local com invalidação automática | ✅ Implementado |
