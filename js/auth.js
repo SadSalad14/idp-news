@@ -3,16 +3,12 @@ import { firebase, auth, db, isDemoMode } from './firebase.js';
 import { showToast, updateUserUI, showLoading } from './ui.js';
 import { setReputacao, setCurrentUserState } from './state.js';
 
-// ─── Configuração ────────────────────────────────────────────────────────────
-// Sitekey vem de js/config.js → APP_CONFIG.recaptchaSiteKey
 const RECAPTCHA_SITE_KEY = window.APP_CONFIG?.recaptchaSiteKey ?? '';
 
 let currentAuthModal   = null;
 let recaptchaWidgetIds = { login: null, register: null };
 
-// ─── Inicialização ────────────────────────────────────────────────────────────
 export function initAuth() {
-    // No modo demo o Firebase não está disponível — apenas configura os botões
     if (isDemoMode) {
         updateUserUI(null);
         setupAuthButtons();
@@ -20,7 +16,7 @@ export function initAuth() {
     }
 
     auth.onAuthStateChanged(async (user) => {
-        setCurrentUserState(user);   // sincroniza estado global
+        setCurrentUserState(user);
         if (user) {
             await loadUserData(user);
             updateUserUI(user);
@@ -32,23 +28,19 @@ export function initAuth() {
     setupAuthButtons();
     loadRecaptchaScript();
 
-    // Logout — delegação de evento (botão é criado dinamicamente)
+    // Logout via delegação (botão é criado dinamicamente)
     document.addEventListener('click', async (e) => {
-        if (e.target.closest('.logout-btn')) {
-            await logout();
-        }
+        if (e.target.closest('.logout-btn')) await logout();
     });
 }
 
-// ─── reCAPTCHA ────────────────────────────────────────────────────────────────
 function loadRecaptchaScript() {
     if (document.getElementById('recaptcha-script')) return;
-
-    const script    = document.createElement('script');
-    script.id       = 'recaptcha-script';
-    script.src      = `https://www.google.com/recaptcha/api.js?render=explicit&onload=onRecaptchaLoaded`;
-    script.async    = true;
-    script.defer    = true;
+    const script  = document.createElement('script');
+    script.id     = 'recaptcha-script';
+    script.src    = 'https://www.google.com/recaptcha/api.js?render=explicit&onload=onRecaptchaLoaded';
+    script.async  = true;
+    script.defer  = true;
     document.head.appendChild(script);
 }
 
@@ -57,8 +49,6 @@ function renderRecaptchaWidgets(tab) {
         setTimeout(() => renderRecaptchaWidgets(tab), 500);
         return;
     }
-
-    // Reseta widgets anteriores
     ['login', 'register'].forEach(t => {
         if (recaptchaWidgetIds[t] !== null) {
             try { grecaptcha.reset(recaptchaWidgetIds[t]); } catch (_) {}
@@ -66,15 +56,16 @@ function renderRecaptchaWidgets(tab) {
     });
     recaptchaWidgetIds = { login: null, register: null };
 
-    const containerId = tab === 'login' ? 'recaptcha-login-widget' : 'recaptcha-register-widget';
-    const container   = document.getElementById(containerId);
+    const container = document.getElementById(
+        tab === 'login' ? 'recaptcha-login-widget' : 'recaptcha-register-widget'
+    );
     if (!container) return;
 
     try {
         recaptchaWidgetIds[tab] = grecaptcha.render(container, {
             sitekey: RECAPTCHA_SITE_KEY,
             theme: 'dark',
-            'expired-callback': () => showToast('Verificação expirou. Marque novamente.', 'error')
+            'expired-callback': () => showToast('Verificação expirou. Tente novamente.', 'error')
         });
     } catch (err) {
         console.error('Erro ao renderizar reCAPTCHA:', err);
@@ -88,7 +79,6 @@ function isRecaptchaSolved(tab) {
     return grecaptcha.getResponse(id).length > 0;
 }
 
-// ─── Botões e Modal ───────────────────────────────────────────────────────────
 function setupAuthButtons() {
     document.getElementById('btn-login')?.addEventListener('click',     () => showAuthModal('login'));
     document.getElementById('btn-registrar')?.addEventListener('click', () => showAuthModal('register'));
@@ -97,28 +87,23 @@ function setupAuthButtons() {
 export function showAuthModal(defaultTab = 'login') {
     document.getElementById('modal-auth')?.remove();
 
-    // Aviso de modo demo
     const avisoDemoHTML = isDemoMode ? `
         <div class="aviso-demo-modal">
             <i class="fas fa-flask"></i>
             <span>Modo demonstração — login e cadastro não funcionam aqui.<br>
-            <small>No site real, esta tela conecta ao Firebase Authentication.</small></span>
+            <small>No site real esta tela conecta ao Firebase.</small></span>
         </div>` : '';
 
-    const modalHTML = `
+    document.body.insertAdjacentHTML('beforeend', `
     <div id="modal-auth" class="modal">
         <div class="modal-content modal-sm">
             <button class="close-auth close">&times;</button>
             <h2><i class="fas fa-user-circle"></i> Acesso</h2>
-
             ${avisoDemoHTML}
-
             <div class="login-tabs">
                 <button class="login-tab ${defaultTab === 'login'    ? 'active' : ''}" data-tab="login">Entrar</button>
                 <button class="login-tab ${defaultTab === 'register' ? 'active' : ''}" data-tab="register">Registrar</button>
             </div>
-
-            <!-- Formulário de Login -->
             <form id="form-login" class="login-form ${defaultTab === 'login' ? 'active' : ''}" novalidate>
                 <div class="form-group">
                     <label for="auth-email"><i class="fas fa-envelope"></i> E-mail:</label>
@@ -133,8 +118,6 @@ export function showAuthModal(defaultTab = 'login') {
                     <i class="fas fa-sign-in-alt"></i> Entrar
                 </button>
             </form>
-
-            <!-- Formulário de Registro -->
             <form id="form-register" class="login-form ${defaultTab === 'register' ? 'active' : ''}" novalidate>
                 <div class="form-group">
                     <label for="reg-name"><i class="fas fa-user"></i> Nome:</label>
@@ -154,21 +137,18 @@ export function showAuthModal(defaultTab = 'login') {
                 </button>
             </form>
         </div>
-    </div>`;
+    </div>`);
 
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
     currentAuthModal = document.getElementById('modal-auth');
     setupModalEvents(defaultTab);
     currentAuthModal.style.display = 'block';
-    setTimeout(() => renderRecaptchaWidgets(defaultTab), 350);
+    if (!isDemoMode) setTimeout(() => renderRecaptchaWidgets(defaultTab), 350);
 }
 
 function setupModalEvents(defaultTab) {
     if (!currentAuthModal) return;
-
     currentAuthModal.querySelector('.close-auth').addEventListener('click', closeAuthModal);
     currentAuthModal.addEventListener('click', (e) => { if (e.target === currentAuthModal) closeAuthModal(); });
-
     currentAuthModal.querySelectorAll('.login-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const name = tab.dataset.tab;
@@ -178,7 +158,6 @@ function setupModalEvents(defaultTab) {
             renderRecaptchaWidgets(name);
         });
     });
-
     currentAuthModal.querySelector('#form-login').addEventListener('submit',   (e) => { e.preventDefault(); handleLogin(); });
     currentAuthModal.querySelector('#form-register').addEventListener('submit', (e) => { e.preventDefault(); handleRegister(); });
 }
@@ -189,18 +168,13 @@ function closeAuthModal() {
     recaptchaWidgetIds = { login: null, register: null };
 }
 
-// ─── Login ────────────────────────────────────────────────────────────────────
 async function handleLogin() {
     const email    = currentAuthModal.querySelector('#auth-email').value.trim();
     const password = currentAuthModal.querySelector('#auth-password').value;
 
-    if (!validateEmail(email))  { showToast('E-mail inválido', 'error'); return; }
-    if (password.length < 6)    { showToast('Senha muito curta', 'error'); return; }
-
-    if (!isRecaptchaSolved('login')) {
-        showToast('Complete a verificação reCAPTCHA', 'error');
-        return;
-    }
+    if (!validateEmail(email)) { showToast('E-mail inválido', 'error'); return; }
+    if (password.length < 6)   { showToast('Senha muito curta', 'error'); return; }
+    if (!isRecaptchaSolved('login')) { showToast('Complete o reCAPTCHA', 'error'); return; }
 
     showLoading(true);
     try {
@@ -214,7 +188,6 @@ async function handleLogin() {
     }
 }
 
-// ─── Registro ─────────────────────────────────────────────────────────────────
 async function handleRegister() {
     const name     = currentAuthModal.querySelector('#reg-name').value.trim();
     const email    = currentAuthModal.querySelector('#reg-email').value.trim();
@@ -223,27 +196,18 @@ async function handleRegister() {
     if (name.length < 3)       { showToast('Nome muito curto (mín. 3 caracteres)', 'error'); return; }
     if (!validateEmail(email)) { showToast('E-mail inválido', 'error'); return; }
     if (password.length < 6)   { showToast('Senha muito curta (mín. 6 caracteres)', 'error'); return; }
-
-    if (!isRecaptchaSolved('register')) {
-        showToast('Complete a verificação reCAPTCHA', 'error');
-        return;
-    }
+    if (!isRecaptchaSolved('register')) { showToast('Complete o reCAPTCHA', 'error'); return; }
 
     showLoading(true);
     try {
         const credential = await auth.createUserWithEmailAndPassword(email, password);
         await credential.user.updateProfile({ displayName: name });
-
         await db.collection('usuarios').doc(credential.user.uid).set({
-            nome:               name,
-            email:              email,
-            reputacao:          50,
-            noticiasPublicadas: 0,
-            banido:             false,
-            dataCriacao:        firebase.firestore.FieldValue.serverTimestamp(),
-            localizacao:        null
+            nome: name, email,
+            reputacao: 50, noticiasPublicadas: 0, banido: false,
+            dataCriacao: firebase.firestore.FieldValue.serverTimestamp(),
+            localizacao: null
         });
-
         showToast('Conta criada com sucesso!', 'success');
         closeAuthModal();
     } catch (err) {
@@ -253,27 +217,20 @@ async function handleRegister() {
     }
 }
 
-// ─── Dados do Usuário ─────────────────────────────────────────────────────────
 async function loadUserData(user) {
     try {
         const doc = await db.collection('usuarios').doc(user.uid).get();
         if (!doc.exists) {
             await db.collection('usuarios').doc(user.uid).set({
-                nome:               user.displayName || user.email.split('@')[0],
-                email:              user.email,
-                reputacao:          50,
-                noticiasPublicadas: 0,
-                banido:             false,
-                dataCriacao:        firebase.firestore.FieldValue.serverTimestamp(),
-                localizacao:        null
+                nome: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                reputacao: 50, noticiasPublicadas: 0, banido: false,
+                dataCriacao: firebase.firestore.FieldValue.serverTimestamp(),
+                localizacao: null
             });
             return;
         }
-
-        // Alimenta estado compartilhado (evita leitura extra ao publicar)
         setReputacao(doc.data().reputacao);
-
-        // Bloqueia acesso a usuários banidos
         if (doc.data().banido) {
             showToast('Sua conta foi suspensa. Contate a moderação.', 'error');
             await auth.signOut();
@@ -283,7 +240,6 @@ async function loadUserData(user) {
     }
 }
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
 export async function logout() {
     try {
         await auth.signOut();
@@ -293,35 +249,31 @@ export async function logout() {
     }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function validateEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function handleAuthError(error) {
     const messages = {
-        'auth/email-already-in-use':  'Este e-mail já está em uso.',
-        'auth/invalid-email':         'E-mail inválido.',
-        'auth/weak-password':         'Senha muito fraca (mínimo 6 caracteres).',
-        'auth/wrong-password':        'Senha incorreta.',
-        'auth/user-not-found':        'Usuário não encontrado.',
-        'auth/too-many-requests':     'Muitas tentativas. Tente novamente mais tarde.',
-        'auth/network-request-failed':'Erro de conexão. Verifique sua internet.',
-        'auth/operation-not-allowed': 'Operação não permitida. Contate o suporte.'
+        'auth/email-already-in-use':   'Este e-mail já está em uso.',
+        'auth/invalid-email':          'E-mail inválido.',
+        'auth/weak-password':          'Senha fraca (mínimo 6 caracteres).',
+        'auth/wrong-password':         'Senha incorreta.',
+        'auth/user-not-found':         'Usuário não encontrado.',
+        'auth/too-many-requests':      'Muitas tentativas. Tente mais tarde.',
+        'auth/network-request-failed': 'Sem conexão. Verifique sua internet.',
     };
     showToast(messages[error.code] || `Erro: ${error.message}`, 'error');
 }
 
 export function getCurrentUser() {
-    // Em modo demo auth é null; usa o state que pode ter usuário simulado
     if (isDemoMode) return null;
     return auth?.currentUser ?? null;
 }
 
-// Callback global quando o script reCAPTCHA termina de carregar
-window.onRecaptchaLoaded = function () {
+window.onRecaptchaLoaded = function() {
     if (currentAuthModal) {
-        const activeTab = currentAuthModal.querySelector('.login-tab.active')?.dataset.tab || 'login';
-        renderRecaptchaWidgets(activeTab);
+        const tab = currentAuthModal.querySelector('.login-tab.active')?.dataset.tab || 'login';
+        renderRecaptchaWidgets(tab);
     }
 };

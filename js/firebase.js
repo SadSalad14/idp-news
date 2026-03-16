@@ -1,35 +1,33 @@
 // js/firebase.js
-// Firebase 8 compat é carregado como scripts globais no index.html.
-// As credenciais vêm de js/config.js (carregado antes dos módulos).
-//
-// MODO DEMO: quando projectId não está configurado, o site funciona com
-// dados de exemplo locais. Todas as interações ficam só na memória.
+// Inicializa o Firebase e detecta se está em modo demo (sem credenciais configuradas).
 
-const _projectId = window.APP_CONFIG?.firebase?.projectId;
+const projectId = window.APP_CONFIG?.firebase?.projectId;
 
-// isDemoMode = true quando não há Firebase configurado (ex: GitHub Pages sem config real)
-export const isDemoMode = !_projectId || _projectId === '';
+// Modo demo: ativo quando não há Firebase configurado (ex: GitHub Pages sem config real)
+export const isDemoMode = !projectId || projectId === '';
+
+// Declara como variável local para poder exportar do módulo
+const firebase = window.firebase;
 
 let auth = null;
 let db   = null;
 
 if (!isDemoMode) {
-    const firebaseConfig = window.APP_CONFIG.firebase;
-
     if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
+        firebase.initializeApp(window.APP_CONFIG.firebase);
     }
 
     auth = firebase.auth();
     db   = firebase.firestore();
 
-    db.enablePersistence({ synchronizeTabs: true })
-      .catch(err => {
-          if (err.code === 'failed-precondition') console.warn('Persistência offline: múltiplas abas abertas.');
-          else if (err.code === 'unimplemented')  console.warn('Persistência offline não suportada.');
-      });
+    // Permite uso offline (PWA)
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+            console.warn('Persistência offline indisponível:', err.code);
+        }
+    });
 } else {
-    console.info('ℹ️ idp.news rodando em MODO DEMO — dados locais, sem Firebase.');
+    console.info('Modo demo ativo — dados locais, sem Firebase.');
 }
 
 export { firebase, auth, db };

@@ -5,118 +5,85 @@ import { getCurrentUser } from './auth.js';
 import { obterLocalizacao } from './geo.js';
 import { getReputacao, incrementReputacao } from './state.js';
 
-// adicionarNoticiaDemoLocal é importada dinamicamente para evitar ciclo:
-// publicacao.js → noticias.js → auth.js → publicacao.js
-async function _adicionarNoticiaDemoLocal(noticia) {
-    const { adicionarNoticiaDemoLocal } = await import('./noticias.js');
-    adicionarNoticiaDemoLocal(noticia);
+// Import dinâmico para evitar dependência circular com noticias.js
+async function adicionarNoticiaDemoLocal(noticia) {
+    const { adicionarNoticiaDemoLocal: fn } = await import('./noticias.js');
+    fn(noticia);
 }
 
-
-
-// ─── Inicialização ────────────────────────────────────────────────────────────
 export function initPublicacao() {
-    document.getElementById('btn-abrir-modal')?.addEventListener('click',  abrirModalPublicacao);
-    document.getElementById('btn-fechar-modal')?.addEventListener('click', fecharModalPublicacao);
-    document.querySelector('.btn-cancelar')?.addEventListener('click',     fecharModalPublicacao);
-    document.getElementById('form-publicar')?.addEventListener('submit',   handlePublicarNoticia);
-
+    document.getElementById('btn-abrir-modal')?.addEventListener('click',  abrirModal);
+    document.getElementById('btn-fechar-modal')?.addEventListener('click', fecharModal);
+    document.querySelector('.btn-cancelar')?.addEventListener('click',     fecharModal);
+    document.getElementById('form-publicar')?.addEventListener('submit',   handlePublicar);
     document.getElementById('modal-publicar')?.addEventListener('click', (e) => {
-        if (e.target === document.getElementById('modal-publicar')) fecharModalPublicacao();
+        if (e.target === document.getElementById('modal-publicar')) fecharModal();
     });
 
-    // No modo demo o botão fica sempre habilitado
     if (isDemoMode) {
         const btn = document.getElementById('btn-abrir-modal');
-        if (btn) {
-            btn.disabled = false;
-            btn.title    = 'Publicar notícia (modo demonstração)';
-        }
+        if (btn) { btn.disabled = false; btn.title = 'Publicar notícia (modo demonstração)'; }
     }
 }
 
-// ─── Abrir Modal ──────────────────────────────────────────────────────────────
-async function abrirModalPublicacao() {
+async function abrirModal() {
     const modal = document.getElementById('modal-publicar');
     if (!modal) return;
 
-    // No modo Firebase exige login; no modo demo qualquer um pode publicar
     if (!isDemoMode) {
         const user = getCurrentUser();
-        if (!user) {
-            showToast('Faça login para publicar notícias.', 'error');
-            return;
-        }
-        // Verifica banimento no Firebase
+        if (!user) { showToast('Faça login para publicar notícias.', 'error'); return; }
         try {
-            const userDoc = await db.collection('usuarios').doc(user.uid).get();
-            if (userDoc.exists && userDoc.data().banido) {
-                showToast('Sua conta está suspensa e não pode publicar.', 'error');
-                return;
+            const doc = await db.collection('usuarios').doc(user.uid).get();
+            if (doc.exists && doc.data().banido) {
+                showToast('Sua conta está suspensa.', 'error'); return;
             }
         } catch (_) {}
     }
 
     modal.style.display = 'block';
 
-    // Mostra/esconde aviso de demo dentro do modal
     const avisoDemo = modal.querySelector('.aviso-demo-publicacao');
     if (avisoDemo) avisoDemo.style.display = isDemoMode ? 'flex' : 'none';
 
-    // Esconde reCAPTCHA no modo demo
     const recaptchaContainer = modal.querySelector('.recaptcha-container');
     if (recaptchaContainer) recaptchaContainer.style.display = isDemoMode ? 'none' : 'block';
 
-    // Obtém localização
-    const localizacaoInput = document.getElementById('localizacao');
-    if (localizacaoInput) {
-        localizacaoInput.value    = 'Obtendo localização...';
-        localizacaoInput.disabled = true;
-
+    const locInput = document.getElementById('localizacao');
+    if (locInput) {
+        locInput.value    = 'Obtendo localização...';
+        locInput.disabled = true;
         try {
             const coords = await obterLocalizacao();
             if (coords) {
-                const endereco = await converterCoordsParaEndereco(coords.lat, coords.lon);
-                localizacaoInput.value = endereco || `Lat: ${coords.lat.toFixed(4)}, Lon: ${coords.lon.toFixed(4)}`;
-
-                let hiddenInput = document.getElementById('localizacaoCoords');
-                if (!hiddenInput) {
-                    hiddenInput       = document.createElement('input');
-                    hiddenInput.type  = 'hidden';
-                    hiddenInput.id    = 'localizacaoCoords';
-                    hiddenInput.name  = 'localizacaoCoords';
-                    document.getElementById('form-publicar').appendChild(hiddenInput);
+                const endereco = await coordsParaEndereco(coords.lat, coords.lon);
+                locInput.value = endereco || `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`;
+                let hidden = document.getElementById('localizacaoCoords');
+                if (!hidden) {
+                    hidden = Object.assign(document.createElement('input'), { type: 'hidden', id: 'localizacaoCoords', name: 'localizacaoCoords' });
+                    document.getElementById('form-publicar').appendChild(hidden);
                 }
-                hiddenInput.value = JSON.stringify(coords);
+                hidden.value = JSON.stringify(coords);
             } else {
-                localizacaoInput.value       = '';
-                localizacaoInput.disabled    = false;
-                localizacaoInput.placeholder = 'Ex: Recife, PE';
+                locInput.value = ''; locInput.disabled = false;
+                locInput.placeholder = 'Ex: Recife, PE';
             }
-        } catch (_) {
-            localizacaoInput.value    = '';
-            localizacaoInput.disabled = false;
-        }
+        } catch (_) { locInput.value = ''; locInput.disabled = false; }
     }
 
-    // reCAPTCHA (só no modo Firebase)
     if (!isDemoMode) {
         setTimeout(() => {
             if (typeof grecaptcha !== 'undefined') {
                 const el = modal.querySelector('.g-recaptcha');
                 if (el && !el.hasChildNodes()) {
-                    grecaptcha.render(el, {
-                        sitekey: window.APP_CONFIG?.recaptchaSiteKey ?? '',
-                        theme: 'dark'
-                    });
+                    grecaptcha.render(el, { sitekey: window.APP_CONFIG?.recaptchaSiteKey ?? '', theme: 'dark' });
                 }
             }
         }, 400);
     }
 }
 
-// ─── Fechar Modal ─────────────────────────────────────────────────────────────
-function fecharModalPublicacao() {
+function fecharModal() {
     const modal = document.getElementById('modal-publicar');
     if (!modal) return;
     modal.style.display = 'none';
@@ -126,10 +93,8 @@ function fecharModalPublicacao() {
     }
 }
 
-// ─── Submissão ────────────────────────────────────────────────────────────────
-async function handlePublicarNoticia(e) {
+async function handlePublicar(e) {
     e.preventDefault();
-
     const titulo      = document.getElementById('titulo').value.trim();
     const conteudo    = document.getElementById('conteudo').value.trim();
     const categoria   = document.getElementById('categoria').value;
@@ -140,97 +105,66 @@ async function handlePublicarNoticia(e) {
     if (conteudo.length < 50) { showToast('Conteúdo muito curto (mín. 50 caracteres)', 'error'); return; }
     if (!categoria)           { showToast('Selecione uma categoria', 'error'); return; }
     if (!localizacao)         { showToast('Localização é obrigatória', 'error'); return; }
-
-    if (!isDemoMode && typeof grecaptcha !== 'undefined' && grecaptcha.getResponse().length === 0) {
-        showToast('Complete o reCAPTCHA', 'error');
-        return;
+    if (!isDemoMode && typeof grecaptcha !== 'undefined' && !grecaptcha.getResponse()) {
+        showToast('Complete o reCAPTCHA', 'error'); return;
     }
 
-    const submitBtn    = e.target.querySelector('.btn-publicar-confirm');
-    const originalHTML = submitBtn.innerHTML;
-    submitBtn.disabled  = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando...';
+    const btn = e.target.querySelector('.btn-publicar-confirm');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando...';
 
-    // ── MODO DEMO ──────────────────────────────────────────────────────────
     if (isDemoMode) {
-        // Simula um pequeno delay para parecer real
         await new Promise(r => setTimeout(r, 800));
-
-        const noticiaDemo = {
-            id:             `demo-pub-${Date.now()}`,
-            titulo,
-            conteudo,
-            categoria,
-            localizacao,
-            localizacaoCoords: null,
+        await adicionarNoticiaDemoLocal({
+            id: `demo-pub-${Date.now()}`,
+            titulo, conteudo, categoria, localizacao, localizacaoCoords: null,
             autor: { id: 'demo-visitante', nome: 'Você (visitante)', reputacao: 50 },
             dataPublicacao: new Date().toISOString(),
-            status:         'averiguar',
-            pontuacao:      0,
-            reportCount:    0,
-            votos:          { positivos: 0, negativos: 0, usuarios: {} }
-        };
-
-        await _adicionarNoticiaDemoLocal(noticiaDemo);
-        showToast('Notícia publicada na demonstração! (não persistida)', 'success');
-        fecharModalPublicacao();
-        submitBtn.disabled  = false;
-        submitBtn.innerHTML = originalHTML;
+            status: 'averiguar', pontuacao: 0, reportCount: 0,
+            votos: { positivos: 0, negativos: 0, usuarios: {} }
+        });
+        showToast('Notícia publicada! (modo demo, não persistida)', 'success');
+        fecharModal();
+        btn.disabled = false; btn.innerHTML = originalHTML;
         return;
     }
 
-    // ── MODO FIREBASE ──────────────────────────────────────────────────────
     showLoading(true);
     try {
         let localizacaoCoords = null;
-        if (coordsInput?.value) {
-            try { localizacaoCoords = JSON.parse(coordsInput.value); } catch (_) {}
-        }
+        if (coordsInput?.value) try { localizacaoCoords = JSON.parse(coordsInput.value); } catch (_) {}
 
         const user  = getCurrentUser();
         const batch = db.batch();
-
         const noticiaRef = db.collection('noticias').doc();
         batch.set(noticiaRef, {
             titulo, conteudo, categoria, localizacao, localizacaoCoords,
-            autor: {
-                id:        user.uid,
-                nome:      user.displayName || user.email.split('@')[0],
-                reputacao: getReputacao()
-            },
+            autor: { id: user.uid, nome: user.displayName || user.email.split('@')[0], reputacao: getReputacao() },
             dataPublicacao: new Date().toISOString(),
-            timestamp:      firebase.firestore.FieldValue.serverTimestamp(),
-            status:         'averiguar',
-            pontuacao:      0,
-            reportCount:    0,
-            votos:          { positivos: 0, negativos: 0, usuarios: {} }
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'averiguar', pontuacao: 0, reportCount: 0,
+            votos: { positivos: 0, negativos: 0, usuarios: {} }
         });
-
-        const usuarioRef = db.collection('usuarios').doc(user.uid);
-        batch.update(usuarioRef, {
+        batch.update(db.collection('usuarios').doc(user.uid), {
             noticiasPublicadas: firebase.firestore.FieldValue.increment(1),
-            reputacao:          firebase.firestore.FieldValue.increment(5)
+            reputacao: firebase.firestore.FieldValue.increment(5)
         });
-
         await batch.commit();
         incrementReputacao(5);
-
         showToast('Notícia publicada com sucesso!', 'success');
-        fecharModalPublicacao();
+        fecharModal();
         window.dispatchEvent(new CustomEvent('noticiaPublicada'));
-
     } catch (error) {
         console.error('Erro ao publicar:', error);
-        showToast('Erro ao publicar notícia. Tente novamente.', 'error');
+        showToast('Erro ao publicar. Tente novamente.', 'error');
     } finally {
         showLoading(false);
-        submitBtn.disabled  = false;
-        submitBtn.innerHTML = originalHTML;
+        btn.disabled = false; btn.innerHTML = originalHTML;
     }
 }
 
-// ─── Geocoding ────────────────────────────────────────────────────────────────
-async function converterCoordsParaEndereco(lat, lon) {
+async function coordsParaEndereco(lat, lon) {
     try {
         const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`,
