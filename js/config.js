@@ -28,5 +28,5 @@ window.APP_CONFIG = {
     },
 
     // Link do repositório — aparece no banner de demonstração
-    githubUrl: "https://github.com/SEU_USUARIO/idp-news"
+    githubUrl: "https://github.com/sadsalad14/idp-news"
 };

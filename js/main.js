@@ -35,7 +35,7 @@ function setupDemoBanner() {
     });
     const githubUrl = window.APP_CONFIG?.githubUrl;
     if (githubUrl) {
-        const link = banner.querySelector('a[href*="SEU_USUARIO"]');
+        const link = banner.querySelector('a[href*="sadsalad14"]');
         if (link) link.href = githubUrl;
     }
 }
