@@ -1,32 +1,30 @@
 // js/config.js
-// As chaves do Firebase são públicas por design — segurança vem das Firestore Rules.
-// Nunca commite: Firebase Admin SDK, reCAPTCHA secret key, chaves de pagamento.
 
 window.APP_CONFIG = {
 
-    // true  = modo demo (notícias de exemplo, registro fictício) — use no GitHub Pages
-    // false = modo real com Firebase
+    // Modo demo ativo — site funciona com dados de exemplo, sem Firebase
     forceDemo: true,
 
+    // Credenciais Firebase (não usadas enquanto forceDemo = true)
     firebase: {
-        apiKey:            "AIzaSyCB0LutrExC6td1nIJBuiOQlN-30TdnrO8",
-        authDomain:        "independentnews-483ac.firebaseapp.com",
-        projectId:         "independentnews-483ac",
-        storageBucket:     "independentnews-483ac.firebasestorage.app",
-        messagingSenderId: "12329558758",
-        appId:             "1:12329558758:web:588a82edbd34de38d51127",
-        measurementId:     "G-KBVRETFES7"
+        apiKey:            "",
+        authDomain:        "",
+        projectId:         "",
+        storageBucket:     "",
+        messagingSenderId: "",
+        appId:             "",
+        measurementId:     ""
     },
 
     // Gere em: https://www.google.com/recaptcha/admin (v2 "Não sou um robô")
-    recaptchaSiteKey: "INSIRA_SUA_SITEKEY_AQUI",
+    recaptchaSiteKey: "",
 
     // Preencha quando a conta AdSense for aprovada
     adsense: {
-        publisherId: "ca-pub-XXXXXXXXXXXXXXXXX",
-        slots: { banner: "XXXXXXXXXX", grid: "XXXXXXXXXX", inArticle: "XXXXXXXXXX" }
+        publisherId: "",
+        slots: { banner: "", grid: "", inArticle: "" }
     },
 
     // Link do repositório — aparece no banner de demonstração
-    githubUrl: "https://github.com/sadsalad14/idp-news"
+    githubUrl: "https://github.com/SadSalad14/idp-news"
 };
