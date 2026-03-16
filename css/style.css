@@ -456,6 +456,24 @@ header {
     transition: all 0.3s ease;
 }
 
+/* Remove o estilo nativo do sistema operacional no select */
+.form-group select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #1e1e1e;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2300d4ff' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+    cursor: pointer;
+}
+
+/* Garante que as opções herdem o tema escuro */
+.form-group select option {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
 .form-group input:focus,
 .form-group textarea:focus,
 .form-group select:focus {
@@ -1830,4 +1848,140 @@ footer {
         gap: 8px;
     }
     .banner-demo > span { font-size: 12px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   UPLOAD DE MÍDIA (foto ou vídeo no formulário de publicação)
+   ═══════════════════════════════════════════════════════════ */
+
+.upload-area {
+    border: 2px dashed var(--borda);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.02);
+    position: relative;
+}
+
+.upload-area:hover,
+.upload-area.dragover {
+    border-color: var(--cor-primaria);
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.upload-area i {
+    font-size: 32px;
+    color: var(--texto-secundario);
+    margin-bottom: 10px;
+    display: block;
+}
+
+.upload-area p {
+    color: var(--texto-secundario);
+    font-size: 14px;
+    margin: 0;
+}
+
+.upload-area p span {
+    color: var(--cor-primaria);
+    font-weight: 600;
+}
+
+.upload-area input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+/* Preview da mídia selecionada */
+.upload-preview {
+    display: none;
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--borda);
+    background: #000;
+    max-height: 240px;
+}
+
+.upload-preview.visivel {
+    display: block;
+}
+
+.upload-preview img,
+.upload-preview video {
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    display: block;
+}
+
+.upload-preview-remover {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid var(--borda);
+    color: #fff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.upload-preview-remover:hover {
+    background: var(--cor-report);
+}
+
+.upload-info-arquivo {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--texto-secundario);
+}
+
+.upload-info-arquivo.visivel {
+    display: flex;
+}
+
+.upload-info-arquivo i {
+    color: var(--cor-primaria);
+    font-size: 16px;
+}
+
+/* Galeria de mídia dentro do modal de notícia */
+.noticia-midia {
+    margin: 20px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--borda);
+    background: #000;
+}
+
+.noticia-midia img,
+.noticia-midia video {
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    display: block;
+}
+
+.noticia-midia video {
+    outline: none;
 }

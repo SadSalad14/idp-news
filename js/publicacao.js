@@ -20,6 +20,8 @@ export function initPublicacao() {
         if (e.target === document.getElementById('modal-publicar')) fecharModal();
     });
 
+    setupUpload();
+
     if (isDemoMode) {
         const btn = document.getElementById('btn-abrir-modal');
         if (btn) { btn.disabled = false; btn.title = 'Publicar notícia (modo demonstração)'; }
@@ -88,6 +90,7 @@ function fecharModal() {
     if (!modal) return;
     modal.style.display = 'none';
     document.getElementById('form-publicar')?.reset();
+    limparUpload();
     if (!isDemoMode && typeof grecaptcha !== 'undefined') {
         try { grecaptcha.reset(); } catch (_) {}
     }
@@ -116,9 +119,17 @@ async function handlePublicar(e) {
 
     if (isDemoMode) {
         await new Promise(r => setTimeout(r, 800));
+
+        // No modo demo faz preview via URL local (não persiste)
+        const arquivoDemo  = _arquivoSelecionado;
+        const midiaUrlDemo = arquivoDemo ? URL.createObjectURL(arquivoDemo) : null;
+        const midiaTipo    = arquivoDemo?.type.startsWith('video') ? 'video' : 'imagem';
+
         await adicionarNoticiaDemoLocal({
             id: `demo-pub-${Date.now()}`,
             titulo, conteudo, categoria, localizacao, localizacaoCoords: null,
+            midiaUrl: midiaUrlDemo,
+            midiatipo: midiaTipo,
             autor: { id: 'demo-visitante', nome: 'Você (visitante)', reputacao: 50 },
             dataPublicacao: new Date().toISOString(),
             status: 'averiguar', pontuacao: 0, reportCount: 0,
@@ -135,11 +146,21 @@ async function handlePublicar(e) {
         let localizacaoCoords = null;
         if (coordsInput?.value) try { localizacaoCoords = JSON.parse(coordsInput.value); } catch (_) {}
 
+        // Upload de mídia para o Firebase Storage (se houver arquivo)
+        let midiaUrl  = null;
+        let midiatipo = null;
+        if (_arquivoSelecionado) {
+            const resultado = await uploadMidia(_arquivoSelecionado);
+            midiaUrl  = resultado.url;
+            midiatipo = resultado.tipo;
+        }
+
         const user  = getCurrentUser();
         const batch = db.batch();
         const noticiaRef = db.collection('noticias').doc();
         batch.set(noticiaRef, {
             titulo, conteudo, categoria, localizacao, localizacaoCoords,
+            midiaUrl, midiatipo,
             autor: { id: user.uid, nome: user.displayName || user.email.split('@')[0], reputacao: getReputacao() },
             dataPublicacao: new Date().toISOString(),
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -162,6 +183,95 @@ async function handlePublicar(e) {
         showLoading(false);
         btn.disabled = false; btn.innerHTML = originalHTML;
     }
+}
+
+// ─── Upload de mídia ──────────────────────────────────────────────────────────
+
+let _arquivoSelecionado = null;
+const TAMANHO_MAX = 10 * 1024 * 1024; // 10 MB
+
+function setupUpload() {
+    const input    = document.getElementById('midia');
+    const area     = document.getElementById('upload-area');
+    const remover  = document.getElementById('upload-remover');
+    if (!input || !area) return;
+
+    input.addEventListener('change', () => {
+        if (input.files[0]) processarArquivo(input.files[0]);
+    });
+
+    // Drag and drop
+    area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
+    area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+    area.addEventListener('drop', (e) => {
+        e.preventDefault();
+        area.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) processarArquivo(e.dataTransfer.files[0]);
+    });
+
+    remover?.addEventListener('click', limparUpload);
+}
+
+function processarArquivo(arquivo) {
+    if (arquivo.size > TAMANHO_MAX) {
+        showToast('Arquivo muito grande. Máximo 10 MB.', 'error');
+        return;
+    }
+    if (!arquivo.type.startsWith('image/') && !arquivo.type.startsWith('video/')) {
+        showToast('Formato não suportado. Use imagem ou vídeo.', 'error');
+        return;
+    }
+
+    _arquivoSelecionado = arquivo;
+    const url           = URL.createObjectURL(arquivo);
+    const isVideo       = arquivo.type.startsWith('video/');
+    const preview       = document.getElementById('upload-preview');
+    const area          = document.getElementById('upload-area');
+    const info          = document.getElementById('upload-info');
+    const nomeEl        = document.getElementById('upload-nome-arquivo');
+
+    if (preview) {
+        preview.innerHTML = isVideo
+            ? `<video src="${url}" controls preload="metadata"></video>
+               <button type="button" class="upload-preview-remover" id="upload-remover" title="Remover"><i class="fas fa-times"></i></button>`
+            : `<img src="${url}" alt="Preview">
+               <button type="button" class="upload-preview-remover" id="upload-remover" title="Remover"><i class="fas fa-times"></i></button>`;
+        preview.classList.add('visivel');
+        preview.querySelector('.upload-preview-remover')?.addEventListener('click', limparUpload);
+    }
+
+    if (area) area.style.display = 'none';
+    if (info) info.classList.add('visivel');
+    if (nomeEl) nomeEl.textContent = `${arquivo.name} (${(arquivo.size / 1024 / 1024).toFixed(1)} MB)`;
+    if (info) {
+        const icon = info.querySelector('i');
+        if (icon) icon.className = isVideo ? 'fas fa-video' : 'fas fa-image';
+    }
+}
+
+function limparUpload() {
+    _arquivoSelecionado = null;
+    const input   = document.getElementById('midia');
+    const preview = document.getElementById('upload-preview');
+    const area    = document.getElementById('upload-area');
+    const info    = document.getElementById('upload-info');
+
+    if (input)   input.value = '';
+    if (preview) { preview.innerHTML = ''; preview.classList.remove('visivel'); }
+    if (area)    area.style.display = '';
+    if (info)    info.classList.remove('visivel');
+}
+
+async function uploadMidia(arquivo) {
+    const storage  = firebase.storage();
+    const tipo     = arquivo.type.startsWith('video/') ? 'video' : 'imagem';
+    const ext      = arquivo.name.split('.').pop();
+    const caminho  = `midias/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const ref      = storage.ref(caminho);
+
+    await ref.put(arquivo);
+    const url = await ref.getDownloadURL();
+    return { url, tipo };
 }
 
 async function coordsParaEndereco(lat, lon) {

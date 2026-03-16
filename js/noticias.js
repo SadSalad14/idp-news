@@ -216,6 +216,13 @@ export async function mostrarNoticiaCompleta(noticiaId) {
             <div class="noticia-completa-conteudo">
                 ${escapeHTML(noticia.conteudo).replace(/\n/g, '<br>')}
             </div>
+            ${noticia.midiaUrl ? `
+            <div class="noticia-midia">
+                ${noticia.midiatipo === 'video'
+                    ? `<video controls preload="metadata"><source src="${noticia.midiaUrl}"></video>`
+                    : `<img src="${noticia.midiaUrl}" alt="Mídia da notícia" loading="lazy">`
+                }
+            </div>` : ''}
             <div class="noticia-votacao-modal">
                 <h4><i class="fas fa-vote-yea"></i> Contribua com a verificação</h4>
                 <p>Esta notícia tem <strong>${Math.round(noticia.pontuacao || 0)} pontos</strong>.</p>

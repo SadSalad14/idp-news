@@ -3,32 +3,55 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>idp.news - Notícias verificadas pela comunidade</title>
   <meta name="description" content="Plataforma de notícias independentes verificadas pela comunidade" />
 
+  <!-- Estilos -->
   <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
-    crossorigin="anonymous" referrerpolicy="no-referrer" />
 
+  <!-- Ícones (integrity hash válido) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+  <!-- PWA / App Meta -->
   <meta name="theme-color" content="#00d4ff">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="idp.news" />
+  <!-- Caminhos relativos → funcionam tanto em domínio raiz quanto em /repo-name/ (GitHub Pages) -->
   <link rel="icon" type="image/png" href="favicon_io/favicon-96x96.png" sizes="96x96" />
   <link rel="icon" type="image/svg+xml" href="favicon_io/favicon.svg" />
   <link rel="shortcut icon" href="favicon_io/favicon.ico" />
   <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-title" content="idp.news" />
   <link rel="manifest" href="site.webmanifest" />
 
-  <!-- Configuração: Firebase, reCAPTCHA, AdSense, GitHub -->
+  <!--
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXXX"
+          crossorigin="anonymous"></script>
+  -->
+
+  <!--
+  Configuração da aplicação (Firebase, reCAPTCHA, AdSense)
+  DEVE ser carregado ANTES do Firebase para que APP_CONFIG esteja disponível.
+  Veja js/config.example.js para instruções de setup.
+  -->
   <script src="js/config.js"></script>
 
-  <!-- Firebase SDK — precisa carregar antes do main.js, sem defer -->
+  <!--
+  Firebase 8 Compat — carregado ANTES do main.js (sem defer)
+  para garantir que window.firebase esteja disponível ao módulo.
+  -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -38,12 +61,14 @@
 
 <body>
 
+  <!-- ═══════════════════════════════ HEADER ════════════════════════════════ -->
   <header>
     <div class="header-container">
       <div class="logo-section">
         <h1><i class="fas fa-newspaper"></i> idp.news</h1>
         <p class="tagline">Notícias verificadas pela comunidade</p>
       </div>
+
       <div class="user-section">
         <span class="user-info" id="user-info">
           <i class="fas fa-user"></i> Visitante
@@ -56,7 +81,8 @@
     </div>
   </header>
 
-  <!-- Banner exibido automaticamente no modo demo -->
+  <!-- ═════════════════════ BANNER MODO DEMO ══════════════════════════════ -->
+  <!-- Exibido automaticamente pelo main.js quando isDemoMode = true         -->
   <div id="banner-demo" class="banner-demo" style="display:none" role="status" aria-live="polite">
     <i class="fas fa-flask"></i>
     <span>
@@ -69,6 +95,20 @@
     <button class="banner-demo-fechar" aria-label="Fechar aviso">&times;</button>
   </div>
 
+  <!-- ══════════════════════════ BANNER SUPERIOR (AdSense) ═════════════════ -->
+  <!--
+  <div class="ad-slot ad-slot-banner" aria-label="Publicidade">
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-client="ca-pub-XXXXXXXXXXXXXXXXX"
+         data-ad-slot="XXXXXXXXXX"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  -->
+
+  <!-- ═══════════════════════════════ FILTROS ═══════════════════════════════ -->
   <nav class="categorias" aria-label="Categorias de notícias">
     <div class="categorias-header">
       <h2><i class="fas fa-filter"></i> Categorias</h2>
@@ -79,16 +119,17 @@
       </div>
     </div>
     <div class="botoes-categorias">
-      <button class="btn-categoria active" data-categoria="todas">    <i class="fas fa-globe"></i>                Todas</button>
-      <button class="btn-categoria"        data-categoria="politica"> <i class="fas fa-landmark"></i>             Política</button>
-      <button class="btn-categoria"        data-categoria="descasos"> <i class="fas fa-exclamation-triangle"></i>  Descasos</button>
-      <button class="btn-categoria"        data-categoria="crimes">   <i class="fas fa-gavel"></i>                Crimes</button>
-      <button class="btn-categoria"        data-categoria="games">    <i class="fas fa-gamepad"></i>              Games</button>
-      <button class="btn-categoria"        data-categoria="denuncias"><i class="fas fa-bullhorn"></i>             Denúncias</button>
-      <button class="btn-categoria"        data-categoria="saude">    <i class="fas fa-heartbeat"></i>            Saúde</button>
+      <button class="btn-categoria active" data-categoria="todas">     <i class="fas fa-globe"></i>               Todas</button>
+      <button class="btn-categoria"        data-categoria="politica">  <i class="fas fa-landmark"></i>            Política</button>
+      <button class="btn-categoria"        data-categoria="descasos">  <i class="fas fa-exclamation-triangle"></i> Descasos</button>
+      <button class="btn-categoria"        data-categoria="crimes">    <i class="fas fa-gavel"></i>               Crimes</button>
+      <button class="btn-categoria"        data-categoria="games">     <i class="fas fa-gamepad"></i>             Games</button>
+      <button class="btn-categoria"        data-categoria="denuncias"> <i class="fas fa-bullhorn"></i>            Denúncias</button>
+      <button class="btn-categoria"        data-categoria="saude">     <i class="fas fa-heartbeat"></i>           Saúde</button>
     </div>
   </nav>
 
+  <!-- ════════════════════════════ CONTEÚDO ════════════════════════════════ -->
   <main>
     <section id="noticias-container" class="noticias-grid" aria-live="polite">
       <div class="loading-container">
@@ -98,24 +139,28 @@
     </section>
   </main>
 
+  <!-- ════════════════════════════ BOTÃO PUBLICAR ══════════════════════════ -->
   <section class="acao-usuario">
     <button id="btn-abrir-modal" class="btn-publicar" disabled title="Faça login para publicar notícias">
       <i class="fas fa-plus-circle"></i> Publicar Notícia
     </button>
   </section>
 
-  <!-- Modal: Publicar notícia -->
+  <!-- ════════════════════════════ MODAL PUBLICAÇÃO ════════════════════════ -->
   <div id="modal-publicar" class="modal">
     <div class="modal-content">
       <button id="btn-fechar-modal" class="close">&times;</button>
       <h2><i class="fas fa-plus-circle"></i> Publicar Nova Notícia</h2>
+
+      <!-- Aviso visível apenas no modo demo — controlado pelo publicacao.js -->
       <div class="aviso-demo-publicacao" style="display:none">
         <i class="fas fa-flask"></i>
         <div>
           <strong>Modo demonstração</strong>
-          <small>Sua notícia aparece no feed, mas é perdida ao recarregar. No site real ficaria salva para todos.</small>
+          <small>Sua notícia aparecerá no feed, mas será perdida ao recarregar a página. No site real ela seria salva e ficaria visível para todos.</small>
         </div>
       </div>
+
       <form id="form-publicar">
         <div class="form-group">
           <label for="titulo"><i class="fas fa-heading"></i> Título *</label>
@@ -144,6 +189,25 @@
         <div class="form-group recaptcha-container">
           <div class="g-recaptcha"></div>
         </div>
+        <!-- Upload opcional: 0 ou 1 foto/vídeo -->
+        <div class="form-group">
+          <label for="midia"><i class="fas fa-photo-video"></i> Foto ou vídeo (opcional)</label>
+          <div class="upload-area" id="upload-area">
+            <input type="file" id="midia" name="midia" accept="image/*,video/*">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>Arraste um arquivo ou <span>clique para selecionar</span></p>
+            <p style="font-size:12px;margin-top:6px;opacity:0.6">Imagem ou vídeo — máx. 10 MB</p>
+          </div>
+          <div class="upload-preview" id="upload-preview">
+            <button type="button" class="upload-preview-remover" id="upload-remover" title="Remover arquivo">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="upload-info-arquivo" id="upload-info">
+            <i class="fas fa-file"></i>
+            <span id="upload-nome-arquivo"></span>
+          </div>
+        </div>
         <div class="form-buttons">
           <button type="submit" class="btn-publicar-confirm"><i class="fas fa-paper-plane"></i> Publicar</button>
           <button type="button" class="btn-cancelar"><i class="fas fa-times"></i> Cancelar</button>
@@ -152,7 +216,7 @@
     </div>
   </div>
 
-  <!-- Modal: Notícia completa -->
+  <!-- ════════════════════════════ MODAL NOTÍCIA ═══════════════════════════ -->
   <div id="modal-noticia" class="modal">
     <div class="modal-content modal-lg">
       <button class="close-noticia close">&times;</button>
@@ -160,7 +224,7 @@
     </div>
   </div>
 
-  <!-- Modal: Termos, privacidade, contato, etc. -->
+  <!-- ════════════════════════════ MODAL INFORMAÇÕES ═══════════════════════ -->
   <div id="modal-informacoes" class="modal">
     <div class="modal-content modal-lg">
       <button class="close-informacoes close">&times;</button>
@@ -168,26 +232,46 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════ FOOTER ════════════════════════════════ -->
   <footer>
     <div class="footer-container">
+
+      <!-- Slot AdSense acima do footer -->
+      <!--
+      <div class="ad-slot ad-slot-footer" aria-label="Publicidade">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-XXXXXXXXXXXXXXXXX"
+             data-ad-slot="XXXXXXXXXX"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      </div>
+      -->
+
       <div class="footer-stats">
         <span id="stats-verificadas">0 notícias verificadas</span>
         <span id="stats-averiguar">0 em averiguação</span>
         <span id="stats-usuarios">0 usuários ativos</span>
       </div>
+
       <p class="footer-copyright">
         <i class="fas fa-shield-alt"></i>
         &copy; 2026 idp.news - Sistema democrático de verificação
       </p>
+
       <div class="footer-links">
-        <a href="#" class="link-informacoes" data-tipo="termosDeUso">        <i class="fas fa-file-contract"></i> Termos de Uso</a>
-        <a href="#" class="link-informacoes" data-tipo="politicaPrivacidade"><i class="fas fa-user-shield"></i>  Privacidade</a>
-        <a href="#" class="link-informacoes" data-tipo="contato">            <i class="fas fa-envelope"></i>     Contato</a>
-        <a href="#" class="link-informacoes" data-tipo="comoFunciona">       <i class="fas fa-info-circle"></i>  Como funciona</a>
+        <a href="#" class="link-informacoes" data-tipo="termosDeUso">     <i class="fas fa-file-contract"></i>  Termos de Uso</a>
+        <a href="#" class="link-informacoes" data-tipo="politicaPrivacidade"><i class="fas fa-user-shield"></i> Privacidade</a>
+        <a href="#" class="link-informacoes" data-tipo="contato">          <i class="fas fa-envelope"></i>      Contato</a>
+        <a href="#" class="link-informacoes" data-tipo="comoFunciona">     <i class="fas fa-info-circle"></i>   Como funciona</a>
       </div>
     </div>
   </footer>
 
+  <!-- reCAPTCHA — carregado pelo auth.js dinamicamente -->
+
+  <!-- Script principal -->
   <script src="js/main.js" type="module" defer></script>
 
 </body>

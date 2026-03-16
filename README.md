@@ -108,7 +108,7 @@ Publicação → status: "averiguar"
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU_USUARIO/idp-news.git
+git clone https://github.com/sadsalad14/idp-news.git
 cd idp-news
 
 # 2. Instale as dependências de desenvolvimento
