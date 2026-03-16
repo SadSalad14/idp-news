@@ -3,6 +3,7 @@ import { initAuth, showAuthModal } from './auth.js';
 import { carregarNoticias, setCategoryFilter, setStatusFilter } from './noticias.js';
 import { initPublicacao } from './publicacao.js';
 import { showToast } from './ui.js';
+import { isDemoMode } from './firebase.js';
 
 let deferredPrompt = null;
 
@@ -16,16 +17,37 @@ async function initApp() {
         initPublicacao();
         setupFilters();
 
+        if (isDemoMode) setupDemoBanner();
+
         await carregarNoticias();
         await setupInfoLinks();
 
         setupConnectionDetection();
         setupPWAInstall();
 
-        console.log('✅ Sistema pronto');
+        console.log(isDemoMode ? '✅ Sistema pronto (modo demo)' : '✅ Sistema pronto');
     } catch (error) {
         console.error('❌ Erro na inicialização:', error);
         showToast('Erro ao inicializar o sistema.', 'error');
+    }
+}
+
+// ─── Banner Demo ──────────────────────────────────────────────────────────────
+function setupDemoBanner() {
+    const banner = document.getElementById('banner-demo');
+    if (!banner) return;
+
+    banner.style.display = 'flex';
+
+    banner.querySelector('.banner-demo-fechar')?.addEventListener('click', () => {
+        banner.style.display = 'none';
+    });
+
+    // Atualiza link do GitHub no banner se configurado
+    const githubUrl = window.APP_CONFIG?.githubUrl;
+    if (githubUrl) {
+        const link = banner.querySelector('a[href*="SEU_USUARIO"]');
+        if (link) link.href = githubUrl;
     }
 }
 

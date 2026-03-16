@@ -1,7 +1,7 @@
 // js/auth.js
-import { firebase, auth, db } from './firebase.js';
+import { firebase, auth, db, isDemoMode } from './firebase.js';
 import { showToast, updateUserUI, showLoading } from './ui.js';
-import { setReputacaoCache } from './publicacao.js';
+import { setReputacao, setCurrentUserState } from './state.js';
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 // Sitekey vem de js/config.js → APP_CONFIG.recaptchaSiteKey
@@ -12,7 +12,15 @@ let recaptchaWidgetIds = { login: null, register: null };
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 export function initAuth() {
+    // No modo demo o Firebase não está disponível — apenas configura os botões
+    if (isDemoMode) {
+        updateUserUI(null);
+        setupAuthButtons();
+        return;
+    }
+
     auth.onAuthStateChanged(async (user) => {
+        setCurrentUserState(user);   // sincroniza estado global
         if (user) {
             await loadUserData(user);
             updateUserUI(user);
@@ -89,11 +97,21 @@ function setupAuthButtons() {
 export function showAuthModal(defaultTab = 'login') {
     document.getElementById('modal-auth')?.remove();
 
+    // Aviso de modo demo
+    const avisoDemoHTML = isDemoMode ? `
+        <div class="aviso-demo-modal">
+            <i class="fas fa-flask"></i>
+            <span>Modo demonstração — login e cadastro não funcionam aqui.<br>
+            <small>No site real, esta tela conecta ao Firebase Authentication.</small></span>
+        </div>` : '';
+
     const modalHTML = `
     <div id="modal-auth" class="modal">
         <div class="modal-content modal-sm">
             <button class="close-auth close">&times;</button>
             <h2><i class="fas fa-user-circle"></i> Acesso</h2>
+
+            ${avisoDemoHTML}
 
             <div class="login-tabs">
                 <button class="login-tab ${defaultTab === 'login'    ? 'active' : ''}" data-tab="login">Entrar</button>
@@ -104,16 +122,14 @@ export function showAuthModal(defaultTab = 'login') {
             <form id="form-login" class="login-form ${defaultTab === 'login' ? 'active' : ''}" novalidate>
                 <div class="form-group">
                     <label for="auth-email"><i class="fas fa-envelope"></i> E-mail:</label>
-                    <input type="email" id="auth-email" required autocomplete="email">
+                    <input type="email" id="auth-email" required autocomplete="email" ${isDemoMode ? 'disabled placeholder="Desabilitado no modo demo"' : ''}>
                 </div>
                 <div class="form-group">
                     <label for="auth-password"><i class="fas fa-lock"></i> Senha:</label>
-                    <input type="password" id="auth-password" required minlength="6" autocomplete="current-password">
+                    <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" ${isDemoMode ? 'disabled' : ''}>
                 </div>
-                <div class="form-group">
-                    <div id="recaptcha-login-widget"></div>
-                </div>
-                <button type="submit" class="btn-enviar">
+                ${!isDemoMode ? `<div class="form-group"><div id="recaptcha-login-widget"></div></div>` : ''}
+                <button type="submit" class="btn-enviar" ${isDemoMode ? 'disabled' : ''}>
                     <i class="fas fa-sign-in-alt"></i> Entrar
                 </button>
             </form>
@@ -122,20 +138,18 @@ export function showAuthModal(defaultTab = 'login') {
             <form id="form-register" class="login-form ${defaultTab === 'register' ? 'active' : ''}" novalidate>
                 <div class="form-group">
                     <label for="reg-name"><i class="fas fa-user"></i> Nome:</label>
-                    <input type="text" id="reg-name" required minlength="3" autocomplete="name">
+                    <input type="text" id="reg-name" required minlength="3" autocomplete="name" ${isDemoMode ? 'disabled placeholder="Desabilitado no modo demo"' : ''}>
                 </div>
                 <div class="form-group">
                     <label for="reg-email"><i class="fas fa-envelope"></i> E-mail:</label>
-                    <input type="email" id="reg-email" required autocomplete="email">
+                    <input type="email" id="reg-email" required autocomplete="email" ${isDemoMode ? 'disabled' : ''}>
                 </div>
                 <div class="form-group">
                     <label for="reg-password"><i class="fas fa-lock"></i> Senha (mín. 6 caracteres):</label>
-                    <input type="password" id="reg-password" minlength="6" required autocomplete="new-password">
+                    <input type="password" id="reg-password" minlength="6" required autocomplete="new-password" ${isDemoMode ? 'disabled' : ''}>
                 </div>
-                <div class="form-group">
-                    <div id="recaptcha-register-widget"></div>
-                </div>
-                <button type="submit" class="btn-enviar">
+                ${!isDemoMode ? `<div class="form-group"><div id="recaptcha-register-widget"></div></div>` : ''}
+                <button type="submit" class="btn-enviar" ${isDemoMode ? 'disabled' : ''}>
                     <i class="fas fa-user-plus"></i> Criar conta
                 </button>
             </form>
@@ -256,8 +270,8 @@ async function loadUserData(user) {
             return;
         }
 
-        // Alimenta cache de reputação em memória (evita leitura extra ao publicar)
-        setReputacaoCache(doc.data().reputacao);
+        // Alimenta estado compartilhado (evita leitura extra ao publicar)
+        setReputacao(doc.data().reputacao);
 
         // Bloqueia acesso a usuários banidos
         if (doc.data().banido) {
@@ -299,7 +313,9 @@ function handleAuthError(error) {
 }
 
 export function getCurrentUser() {
-    return auth.currentUser;
+    // Em modo demo auth é null; usa o state que pode ter usuário simulado
+    if (isDemoMode) return null;
+    return auth?.currentUser ?? null;
 }
 
 // Callback global quando o script reCAPTCHA termina de carregar

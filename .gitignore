@@ -2,12 +2,15 @@
 node_modules/
 package-lock.json
 
-# ── Configuração local (contém suas credenciais reais) ────────────────────────
-# Use js/config.example.js como template e crie o seu próprio js/config.js
-# O config.js NÃO deve ser commitado se contiver chaves privadas (Admin SDK, etc.)
-# Nota: as chaves Firebase web (apiKey, appId…) são publicas por design —
-# a segurança vem das Firestore Rules. Veja os comentários em js/config.js.
-js/config.js
+# ── Configuração ──────────────────────────────────────────────────────────────
+# js/config.js É SEGURO commitar — as chaves Firebase web (apiKey, appId…)
+# são identificadores públicos por design. A segurança real vem das
+# Firestore Security Rules. Veja: firebase.google.com/docs/projects/api-keys
+#
+# NUNCA commite:
+#   - Firebase Admin SDK / service account .json
+#   - reCAPTCHA SECRET KEY (a do servidor)
+#   - Chaves de pagamento ou e-mail transacional
 
 # ── Firebase CLI ──────────────────────────────────────────────────────────────
 .firebase/

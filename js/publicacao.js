@@ -1,15 +1,18 @@
 // js/publicacao.js
-import { firebase, db } from './firebase.js';
+import { firebase, db, isDemoMode } from './firebase.js';
 import { showToast, showLoading } from './ui.js';
 import { getCurrentUser } from './auth.js';
 import { obterLocalizacao } from './geo.js';
+import { getReputacao, incrementReputacao } from './state.js';
 
-// ─── Cache de reputação em memória ───────────────────────────────────────────
-// Evita uma leitura extra no Firestore toda vez que o modal de publicação abre.
-// A reputação é carregada UMA vez no login e mantida aqui.
-let cachedReputacao = 50;
+// adicionarNoticiaDemoLocal é importada dinamicamente para evitar ciclo:
+// publicacao.js → noticias.js → auth.js → publicacao.js
+async function _adicionarNoticiaDemoLocal(noticia) {
+    const { adicionarNoticiaDemoLocal } = await import('./noticias.js');
+    adicionarNoticiaDemoLocal(noticia);
+}
 
-export function setReputacaoCache(valor) { cachedReputacao = valor ?? 50; }
+
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 export function initPublicacao() {
@@ -21,22 +24,50 @@ export function initPublicacao() {
     document.getElementById('modal-publicar')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('modal-publicar')) fecharModalPublicacao();
     });
+
+    // No modo demo o botão fica sempre habilitado
+    if (isDemoMode) {
+        const btn = document.getElementById('btn-abrir-modal');
+        if (btn) {
+            btn.disabled = false;
+            btn.title    = 'Publicar notícia (modo demonstração)';
+        }
+    }
 }
 
 // ─── Abrir Modal ──────────────────────────────────────────────────────────────
 async function abrirModalPublicacao() {
-    const user  = getCurrentUser();
     const modal = document.getElementById('modal-publicar');
+    if (!modal) return;
 
-    if (!user) {
-        showToast('Faça login para publicar notícias.', 'error');
-        return;
+    // No modo Firebase exige login; no modo demo qualquer um pode publicar
+    if (!isDemoMode) {
+        const user = getCurrentUser();
+        if (!user) {
+            showToast('Faça login para publicar notícias.', 'error');
+            return;
+        }
+        // Verifica banimento no Firebase
+        try {
+            const userDoc = await db.collection('usuarios').doc(user.uid).get();
+            if (userDoc.exists && userDoc.data().banido) {
+                showToast('Sua conta está suspensa e não pode publicar.', 'error');
+                return;
+            }
+        } catch (_) {}
     }
 
-    if (!modal) return;
     modal.style.display = 'block';
 
-    // Obtém localização — não toca no Firestore
+    // Mostra/esconde aviso de demo dentro do modal
+    const avisoDemo = modal.querySelector('.aviso-demo-publicacao');
+    if (avisoDemo) avisoDemo.style.display = isDemoMode ? 'flex' : 'none';
+
+    // Esconde reCAPTCHA no modo demo
+    const recaptchaContainer = modal.querySelector('.recaptcha-container');
+    if (recaptchaContainer) recaptchaContainer.style.display = isDemoMode ? 'none' : 'block';
+
+    // Obtém localização
     const localizacaoInput = document.getElementById('localizacao');
     if (localizacaoInput) {
         localizacaoInput.value    = 'Obtendo localização...';
@@ -60,7 +91,7 @@ async function abrirModalPublicacao() {
             } else {
                 localizacaoInput.value       = '';
                 localizacaoInput.disabled    = false;
-                localizacaoInput.placeholder = 'Digite sua cidade/estado manualmente';
+                localizacaoInput.placeholder = 'Ex: Recife, PE';
             }
         } catch (_) {
             localizacaoInput.value    = '';
@@ -68,17 +99,20 @@ async function abrirModalPublicacao() {
         }
     }
 
-    // reCAPTCHA
-    setTimeout(() => {
-        if (typeof grecaptcha === 'undefined') return;
-        const el = modal.querySelector('.g-recaptcha');
-        if (el && !el.hasChildNodes()) {
-            grecaptcha.render(el, {
-                sitekey: window.APP_CONFIG?.recaptchaSiteKey ?? '',
-                theme: 'dark'
-            });
-        }
-    }, 400);
+    // reCAPTCHA (só no modo Firebase)
+    if (!isDemoMode) {
+        setTimeout(() => {
+            if (typeof grecaptcha !== 'undefined') {
+                const el = modal.querySelector('.g-recaptcha');
+                if (el && !el.hasChildNodes()) {
+                    grecaptcha.render(el, {
+                        sitekey: window.APP_CONFIG?.recaptchaSiteKey ?? '',
+                        theme: 'dark'
+                    });
+                }
+            }
+        }, 400);
+    }
 }
 
 // ─── Fechar Modal ─────────────────────────────────────────────────────────────
@@ -87,15 +121,14 @@ function fecharModalPublicacao() {
     if (!modal) return;
     modal.style.display = 'none';
     document.getElementById('form-publicar')?.reset();
-    try { if (typeof grecaptcha !== 'undefined') grecaptcha.reset(); } catch (_) {}
+    if (!isDemoMode && typeof grecaptcha !== 'undefined') {
+        try { grecaptcha.reset(); } catch (_) {}
+    }
 }
 
 // ─── Submissão ────────────────────────────────────────────────────────────────
 async function handlePublicarNoticia(e) {
     e.preventDefault();
-
-    const user = getCurrentUser();
-    if (!user) { showToast('Faça login para publicar notícias.', 'error'); return; }
 
     const titulo      = document.getElementById('titulo').value.trim();
     const conteudo    = document.getElementById('conteudo').value.trim();
@@ -108,47 +141,71 @@ async function handlePublicarNoticia(e) {
     if (!categoria)           { showToast('Selecione uma categoria', 'error'); return; }
     if (!localizacao)         { showToast('Localização é obrigatória', 'error'); return; }
 
-    if (typeof grecaptcha !== 'undefined' && grecaptcha.getResponse().length === 0) {
+    if (!isDemoMode && typeof grecaptcha !== 'undefined' && grecaptcha.getResponse().length === 0) {
         showToast('Complete o reCAPTCHA', 'error');
         return;
     }
 
     const submitBtn    = e.target.querySelector('.btn-publicar-confirm');
     const originalHTML = submitBtn.innerHTML;
-    submitBtn.disabled = true;
+    submitBtn.disabled  = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando...';
-    showLoading(true);
 
+    // ── MODO DEMO ──────────────────────────────────────────────────────────
+    if (isDemoMode) {
+        // Simula um pequeno delay para parecer real
+        await new Promise(r => setTimeout(r, 800));
+
+        const noticiaDemo = {
+            id:             `demo-pub-${Date.now()}`,
+            titulo,
+            conteudo,
+            categoria,
+            localizacao,
+            localizacaoCoords: null,
+            autor: { id: 'demo-visitante', nome: 'Você (visitante)', reputacao: 50 },
+            dataPublicacao: new Date().toISOString(),
+            status:         'averiguar',
+            pontuacao:      0,
+            reportCount:    0,
+            votos:          { positivos: 0, negativos: 0, usuarios: {} }
+        };
+
+        await _adicionarNoticiaDemoLocal(noticiaDemo);
+        showToast('Notícia publicada na demonstração! (não persistida)', 'success');
+        fecharModalPublicacao();
+        submitBtn.disabled  = false;
+        submitBtn.innerHTML = originalHTML;
+        return;
+    }
+
+    // ── MODO FIREBASE ──────────────────────────────────────────────────────
+    showLoading(true);
     try {
         let localizacaoCoords = null;
         if (coordsInput?.value) {
             try { localizacaoCoords = JSON.parse(coordsInput.value); } catch (_) {}
         }
 
-        // Usa reputação do cache em memória — zero leituras extras no Firestore
+        const user  = getCurrentUser();
         const batch = db.batch();
 
         const noticiaRef = db.collection('noticias').doc();
         batch.set(noticiaRef, {
-            titulo,
-            conteudo,
-            categoria,
-            localizacao,
-            localizacaoCoords,
+            titulo, conteudo, categoria, localizacao, localizacaoCoords,
             autor: {
-                id:         user.uid,
-                nome:       user.displayName || user.email.split('@')[0],
-                reputacao:  cachedReputacao
+                id:        user.uid,
+                nome:      user.displayName || user.email.split('@')[0],
+                reputacao: getReputacao()
             },
             dataPublicacao: new Date().toISOString(),
             timestamp:      firebase.firestore.FieldValue.serverTimestamp(),
             status:         'averiguar',
             pontuacao:      0,
             reportCount:    0,
-            votos: { positivos: 0, negativos: 0, usuarios: {} }
+            votos:          { positivos: 0, negativos: 0, usuarios: {} }
         });
 
-        // Atualiza contador e reputação do autor na mesma operação (batch = 1 escrita)
         const usuarioRef = db.collection('usuarios').doc(user.uid);
         batch.update(usuarioRef, {
             noticiasPublicadas: firebase.firestore.FieldValue.increment(1),
@@ -156,9 +213,7 @@ async function handlePublicarNoticia(e) {
         });
 
         await batch.commit();
-
-        // Atualiza cache local de reputação
-        cachedReputacao += 5;
+        incrementReputacao(5);
 
         showToast('Notícia publicada com sucesso!', 'success');
         fecharModalPublicacao();
@@ -174,7 +229,7 @@ async function handlePublicarNoticia(e) {
     }
 }
 
-// ─── Geocoding (Nominatim — gratuito, sem cota Firebase) ─────────────────────
+// ─── Geocoding ────────────────────────────────────────────────────────────────
 async function converterCoordsParaEndereco(lat, lon) {
     try {
         const res = await fetch(

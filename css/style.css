@@ -1672,3 +1672,162 @@ footer {
     letter-spacing: 1px;
     padding: 6px 0 2px;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MODO DEMONSTRAÇÃO
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Banner de demo (topo da página) ─────────────────────────── */
+.banner-demo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(0, 180, 100, 0.15), rgba(0, 212, 255, 0.1));
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+    padding: 10px 25px;
+    font-size: 13px;
+    flex-wrap: wrap;
+    position: relative;
+}
+
+.banner-demo > i.fa-flask {
+    font-size: 18px;
+    color: var(--cor-primaria);
+    flex-shrink: 0;
+}
+
+.banner-demo > span {
+    flex: 1;
+    color: var(--texto-secundario);
+    min-width: 200px;
+}
+
+.banner-demo > span strong {
+    color: var(--cor-primaria);
+    margin-right: 4px;
+}
+
+.banner-demo a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--texto-principal);
+    border: 1px solid var(--borda);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.banner-demo a:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+}
+
+.banner-demo-fechar {
+    background: none;
+    border: none;
+    color: var(--texto-secundario);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.banner-demo-fechar:hover { opacity: 1; }
+
+/* ── Aviso demo dentro do modal de publicação ─────────────────── */
+.aviso-demo-publicacao {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    border-left: 4px solid var(--cor-primaria);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+}
+
+.aviso-demo-publicacao > i {
+    color: var(--cor-primaria);
+    font-size: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.aviso-demo-publicacao strong {
+    display: block;
+    color: var(--cor-primaria);
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.aviso-demo-publicacao small {
+    color: var(--texto-secundario);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── Aviso demo dentro do modal de auth ──────────────────────── */
+.aviso-demo-modal {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(243, 156, 18, 0.1);
+    border: 1px solid rgba(243, 156, 18, 0.3);
+    border-left: 4px solid var(--cor-averiguar);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    color: var(--texto-secundario);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.aviso-demo-modal > i {
+    color: var(--cor-averiguar);
+    font-size: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* ── Notícia publicada nesta sessão ───────────────────────────── */
+.noticia-demo-nova {
+    border-color: rgba(0, 212, 255, 0.4) !important;
+}
+
+.badge-demo-pub {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--cor-primaria);
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    border-radius: 20px;
+    padding: 2px 10px;
+}
+
+/* ── Aviso de voto no modal de notícia ────────────────────────── */
+.demo-aviso-voto {
+    color: var(--cor-primaria) !important;
+    opacity: 0.8;
+}
+
+.demo-aviso-voto i { margin-right: 4px; }
+
+@media (max-width: 600px) {
+    .banner-demo {
+        padding: 10px 15px;
+        gap: 8px;
+    }
+    .banner-demo > span { font-size: 12px; }
+}

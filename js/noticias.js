@@ -1,8 +1,9 @@
 // js/noticias.js
-import { db } from './firebase.js';
+import { db, isDemoMode } from './firebase.js';
 import { showToast, showLoading, formatDate, getCategoryIcon, escapeHTML } from './ui.js';
-import { getCurrentUser } from './auth.js';
+import { getCurrentUserState as getCurrentUser } from './state.js';
 import { voteOnNews, reportNews, checkUserVote } from './votacao.js';
+import { DEMO_NOTICIAS } from './demo-data.js';
 
 // ─── Estado ───────────────────────────────────────────────────────────────────
 let noticias        = [];
@@ -11,10 +12,8 @@ let currentStatus   = 'todas';
 let lastVisible     = null;
 let hasMore         = true;
 let isLoading       = false;
-let statsUnsubscribe = null;   // guarda o listener de stats para poder cancelar
+let statsUnsubscribe = null;
 
-// ─── Configuração de Cache ────────────────────────────────────────────────────
-// OTIMIZAÇÃO 1: cache de 15 min em vez de 5 → reduz leituras Firestore em ~60%
 const CACHE_KEY      = 'noticias_cache_v2';
 const CACHE_DURATION = 15 * 60 * 1000;
 const PAGE_SIZE      = 20;
@@ -28,24 +27,33 @@ export async function carregarNoticias(reset = false) {
 
     try {
         if (reset) {
-            noticias    = [];
             lastVisible = null;
             hasMore     = true;
             limparCache();
+            if (!isDemoMode) noticias = [];
         }
 
-        // Usa cache na primeira carga — evita leitura desnecessária ao Firestore
+        // ── MODO DEMO ──────────────────────────────────────────────────────
+        if (isDemoMode) {
+            // Preserva notícias publicadas nesta sessão + adiciona as de exemplo
+            const publicadasNaSessao = noticias.filter(n => n.id.startsWith('demo-pub-'));
+            noticias = [...publicadasNaSessao, ...DEMO_NOTICIAS];
+            renderizarNoticias();
+            atualizarEstatisticasLocal();
+            return;
+        }
+
+        // ── MODO FIREBASE ──────────────────────────────────────────────────
         if (noticias.length === 0) {
             const cached = obterDoCache();
             if (cached) {
                 noticias = cached;
                 renderizarNoticias();
-                iniciarListenerStats();   // stats em tempo real, sem recarregar notícias
+                iniciarListenerStats();
                 return;
             }
         }
 
-        // OTIMIZAÇÃO 2: filtra removidas na query → menos docs trafegados
         let query = db.collection('noticias')
             .where('status', 'in', ['averiguar', 'verificada'])
             .orderBy('timestamp', 'desc')
@@ -62,12 +70,10 @@ export async function carregarNoticias(reset = false) {
         }
 
         const novas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
         noticias    = reset ? novas : [...noticias, ...novas];
         lastVisible = snapshot.docs[snapshot.docs.length - 1];
         hasMore     = snapshot.docs.length >= PAGE_SIZE;
 
-        // Salva cache apenas da primeira página
         if (!reset || noticias.length <= PAGE_SIZE) {
             salvarNoCache(noticias.slice(0, PAGE_SIZE));
         }
@@ -77,13 +83,8 @@ export async function carregarNoticias(reset = false) {
 
     } catch (error) {
         console.error('Erro ao carregar notícias:', error);
-
-        // Índice composto ausente → orienta o dev
         if (error.code === 'failed-precondition') {
-            console.error(
-                '⚠️ Índice composto ausente no Firestore!\n' +
-                'Abra o link do erro acima no Firebase Console para criá-lo automaticamente.'
-            );
+            console.error('⚠️ Índice composto ausente — clique no link acima para criá-lo.');
             showToast('Configure o índice Firestore. Veja o console.', 'error');
         } else {
             showToast('Erro ao carregar notícias.', 'error');
@@ -96,22 +97,20 @@ export async function carregarNoticias(reset = false) {
 }
 
 async function carregarMaisNoticias() {
-    if (!isLoading && hasMore) await carregarNoticias(false);
+    if (!isLoading && hasMore && !isDemoMode) await carregarNoticias(false);
 }
 
-// ─── Listener em Tempo Real (só stats) ───────────────────────────────────────
-// OTIMIZAÇÃO 3: usa onSnapshot APENAS para os contadores do footer.
-// Assim o usuário vê stats atualizados sem precisar recarregar o feed inteiro,
-// economizando dezenas de leituras por sessão.
+// ─── Listener Realtime (só stats, só Firebase) ────────────────────────────────
 function iniciarListenerStats() {
-    if (statsUnsubscribe) statsUnsubscribe();   // cancela listener anterior
+    if (isDemoMode || !db) return;
+    if (statsUnsubscribe) statsUnsubscribe();
 
     statsUnsubscribe = db.collection('noticias')
         .where('status', 'in', ['averiguar', 'verificada'])
         .onSnapshot(
             { includeMetadataChanges: false },
             snapshot => {
-                const docs       = snapshot.docs.map(d => d.data());
+                const docs        = snapshot.docs.map(d => d.data());
                 const verificadas = docs.filter(n => n.status === 'verificada').length;
                 const averiguar   = docs.filter(n => n.status === 'averiguar').length;
                 const usuarios    = new Set(docs.map(n => n.autor?.id).filter(Boolean)).size;
@@ -121,13 +120,17 @@ function iniciarListenerStats() {
         );
 }
 
-// ─── Cache ────────────────────────────────────────────────────────────────────
-function salvarNoCache(data) {
-    try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
-    } catch (_) {}
+function atualizarEstatisticasLocal() {
+    const verificadas = noticias.filter(n => n.status === 'verificada').length;
+    const averiguar   = noticias.filter(n => n.status === 'averiguar').length;
+    const usuarios    = new Set(noticias.map(n => n.autor?.id).filter(Boolean)).size;
+    _atualizarEstatisticasDOM(verificadas, averiguar, usuarios);
 }
 
+// ─── Cache ────────────────────────────────────────────────────────────────────
+function salvarNoCache(data) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data })); } catch (_) {}
+}
 function obterDoCache() {
     try {
         const raw = localStorage.getItem(CACHE_KEY);
@@ -137,7 +140,6 @@ function obterDoCache() {
         return data;
     } catch (_) { return null; }
 }
-
 function limparCache() {
     try { localStorage.removeItem(CACHE_KEY); } catch (_) {}
 }
@@ -151,8 +153,9 @@ export function renderizarNoticias() {
     if (filtradas.length === 0) { mostrarMensagemVazia(); return; }
 
     const items = filtradas.map((noticia, index) => {
+        const isNovaDemo = noticia.id.startsWith('demo-pub-');
         const card = `
-            <div class="noticia-card" data-id="${noticia.id}">
+            <div class="noticia-card${isNovaDemo ? ' noticia-demo-nova' : ''}" data-id="${noticia.id}">
                 <span class="noticia-status status-${noticia.status}">
                     ${noticia.status === 'verificada' ? '✓ Verificada' : '🔍 A averiguar'}
                 </span>
@@ -181,32 +184,32 @@ export function renderizarNoticias() {
                     <span><i class="far fa-user"></i> ${escapeHTML(noticia.autor.nome)}</span>
                     <span>Pontos: ${Math.round(noticia.pontuacao || 0)}</span>
                 </div>
+                ${isNovaDemo ? '<span class="badge-demo-pub">✦ Publicada nesta sessão</span>' : ''}
             </div>`;
 
-        // Slot AdSense a cada AD_INTERVAL notícias
         const ad = (index + 1) % AD_INTERVAL === 0 ? `
             <div class="ad-slot ad-slot-grid" aria-label="Publicidade">
                 <ins class="adsbygoogle"
                      style="display:block"
                      data-ad-format="fluid"
                      data-ad-layout-key="-fb+5w+4e-db+86"
-                     data-ad-client="ca-pub-XXXXXXXXXXXXXXXXX"
-                     data-ad-slot="XXXXXXXXXX"></ins>
+                     data-ad-client="${window.APP_CONFIG?.adsense?.publisherId ?? 'ca-pub-XXXXXXXXXXXXXXXXX'}"
+                     data-ad-slot="${window.APP_CONFIG?.adsense?.slots?.grid ?? 'XXXXXXXXXX'}"></ins>
             </div>` : '';
 
         return card + ad;
     }).join('');
 
-    container.innerHTML = items + (hasMore ? `
+    const temMaisFirebase = !isDemoMode && hasMore;
+    container.innerHTML = items + (temMaisFirebase ? `
         <div class="loading-indicator" id="loading-indicator">
             <div class="loading-spinner"></div>
             <p>Carregando mais notícias...</p>
         </div>` : '');
 
     setupNewsCardEvents();
-    setupInfiniteScroll();
+    if (temMaisFirebase) setupInfiniteScroll();
 
-    // Ativa slots AdSense recém inseridos
     if (typeof adsbygoogle !== 'undefined') {
         document.querySelectorAll('.adsbygoogle:not([data-adsbygoogle-status])').forEach(() => {
             try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
@@ -265,8 +268,6 @@ function setupNewsCardEvents() {
 }
 
 // ─── Modal de Notícia Completa ────────────────────────────────────────────────
-// OTIMIZAÇÃO 4: os dados da notícia já estão em memória (array `noticias`).
-// Só faz 1 leitura extra para checar voto do usuário — e apenas se estiver logado.
 export async function mostrarNoticiaCompleta(noticiaId) {
     const noticia = noticias.find(n => n.id === noticiaId);
     if (!noticia) return;
@@ -276,8 +277,9 @@ export async function mostrarNoticiaCompleta(noticiaId) {
     if (!modal || !content) return;
 
     const usuario  = getCurrentUser();
-    // 1 leitura apenas se logado — visitantes não geram custo
-    const userVote = usuario ? await checkUserVote(noticiaId, usuario.uid) : null;
+    const userVote = isDemoMode
+        ? (noticia.votos?.usuarios?.['demo-visitante'] || null)
+        : (usuario ? await checkUserVote(noticiaId, usuario.uid) : null);
 
     content.innerHTML = `
         <div class="noticia-completa">
@@ -302,14 +304,13 @@ export async function mostrarNoticiaCompleta(noticiaId) {
                 ${escapeHTML(noticia.conteudo).replace(/\n/g, '<br>')}
             </div>
 
-            <!-- Slot AdSense in-article -->
             <div class="ad-slot ad-slot-modal" aria-label="Publicidade">
                 <ins class="adsbygoogle"
                      style="display:block;text-align:center"
                      data-ad-layout="in-article"
                      data-ad-format="fluid"
-                     data-ad-client="ca-pub-XXXXXXXXXXXXXXXXX"
-                     data-ad-slot="XXXXXXXXXX"></ins>
+                     data-ad-client="${window.APP_CONFIG?.adsense?.publisherId ?? 'ca-pub-XXXXXXXXXXXXXXXXX'}"
+                     data-ad-slot="${window.APP_CONFIG?.adsense?.slots?.inArticle ?? 'XXXXXXXXXX'}"></ins>
             </div>
 
             <div class="noticia-votacao-modal">
@@ -341,17 +342,17 @@ export async function mostrarNoticiaCompleta(noticiaId) {
                 </div>
 
                 ${userVote ? `<p class="voto-info"><small>Você já votou: ${userVote.tipo === 'positivo' ? 'Confirmou' : 'Negou'}</small></p>` : ''}
-                ${!usuario ? `<p class="voto-info"><small><a href="#" onclick="window.showAuthModal('login');return false;">Faça login</a> para votar.</small></p>` : ''}
+                ${isDemoMode ? `<p class="voto-info demo-aviso-voto"><i class="fas fa-flask"></i> Modo demonstração — votos ficam apenas nesta sessão</p>` : ''}
+                ${!usuario && !isDemoMode ? `<p class="voto-info"><small><a href="#" onclick="window.showAuthModal('login');return false;">Faça login</a> para votar.</small></p>` : ''}
             </div>
         </div>`;
 
     modal.style.display = 'block';
-    setupNewsModalEvents(modal);
-
+    setupNewsModalEvents(modal, noticia);
     try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
 }
 
-function setupNewsModalEvents(modal) {
+function setupNewsModalEvents(modal, noticia) {
     modal.querySelector('.close-noticia')?.addEventListener('click', () => { modal.style.display = 'none'; });
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
@@ -360,6 +361,11 @@ function setupNewsModalEvents(modal) {
             const noticiaId = e.target.closest('[data-id]').dataset.id;
 
             if (btn.classList.contains('btn-report-modal')) {
+                if (isDemoMode) {
+                    showToast('Report simulado recebido! (modo demo)', 'info');
+                    modal.style.display = 'none';
+                    return;
+                }
                 const motivo = prompt('Motivo do report (mín. 10 caracteres):');
                 if (!motivo || motivo.trim().length < 10) {
                     if (motivo) showToast('Motivo muito curto (mín. 10 caracteres).', 'error');
@@ -372,33 +378,62 @@ function setupNewsModalEvents(modal) {
                     limparCache();
                     await carregarNoticias(true);
                 }
-            } else {
-                const ok = await voteOnNews(noticiaId, btn.dataset.voto, getCurrentUser(), btn);
-                if (ok) {
-                    modal.style.display = 'none';
-                    // OTIMIZAÇÃO 5: atualiza o item local em memória em vez de recarregar tudo do Firestore
-                    const idx = noticias.findIndex(n => n.id === noticiaId);
-                    if (idx !== -1) {
-                        const delta = btn.dataset.voto === 'positivo' ? 1 : -1;
-                        noticias[idx] = {
-                            ...noticias[idx],
-                            pontuacao: (noticias[idx].pontuacao || 0) + delta,
-                            votos: {
-                                ...noticias[idx].votos,
-                                positivos: (noticias[idx].votos?.positivos || 0) + (delta > 0 ? 1 : 0),
-                                negativos: (noticias[idx].votos?.negativos || 0) + (delta < 0 ? 1 : 0)
+                return;
+            }
+
+            // ── Voto no modo demo ──────────────────────────────────────────
+            if (isDemoMode) {
+                const idx = noticias.findIndex(n => n.id === noticiaId);
+                if (idx !== -1) {
+                    const jaVotou = noticias[idx].votos?.usuarios?.['demo-visitante'];
+                    if (jaVotou) { showToast('Você já votou nesta notícia.', 'error'); return; }
+
+                    const delta = btn.dataset.voto === 'positivo' ? 1 : -1;
+                    noticias[idx] = {
+                        ...noticias[idx],
+                        pontuacao: (noticias[idx].pontuacao || 0) + delta,
+                        votos: {
+                            positivos: (noticias[idx].votos?.positivos || 0) + (delta > 0 ? 1 : 0),
+                            negativos: (noticias[idx].votos?.negativos || 0) + (delta < 0 ? 1 : 0),
+                            usuarios: {
+                                ...(noticias[idx].votos?.usuarios || {}),
+                                'demo-visitante': { tipo: btn.dataset.voto }
                             }
-                        };
-                        limparCache();
-                        renderizarNoticias();
-                    }
+                        }
+                    };
+                    showToast('Voto registrado! (modo demo)', 'success');
+                    modal.style.display = 'none';
+                    renderizarNoticias();
+                    atualizarEstatisticasLocal();
+                }
+                return;
+            }
+
+            // ── Voto no Firebase ───────────────────────────────────────────
+            const ok = await voteOnNews(noticiaId, btn.dataset.voto, getCurrentUser(), btn);
+            if (ok) {
+                modal.style.display = 'none';
+                const idx = noticias.findIndex(n => n.id === noticiaId);
+                if (idx !== -1) {
+                    const delta = btn.dataset.voto === 'positivo' ? 1 : -1;
+                    noticias[idx] = {
+                        ...noticias[idx],
+                        pontuacao: (noticias[idx].pontuacao || 0) + delta,
+                        votos: {
+                            ...noticias[idx].votos,
+                            positivos: (noticias[idx].votos?.positivos || 0) + (delta > 0 ? 1 : 0),
+                            negativos: (noticias[idx].votos?.negativos || 0) + (delta < 0 ? 1 : 0)
+                        }
+                    };
+                    limparCache();
+                    renderizarNoticias();
                 }
             }
         });
     });
 }
 
-// ─── Estatísticas (atualizado pelo listener realtime) ─────────────────────────
+// ─── Estatísticas ─────────────────────────────────────────────────────────────
 function _atualizarEstatisticasDOM(verificadas, averiguar, usuarios) {
     const el = id => document.getElementById(id);
     if (el('stats-verificadas')) el('stats-verificadas').innerHTML = `<i class="fas fa-check-circle"></i> ${verificadas} verificadas`;
@@ -406,10 +441,15 @@ function _atualizarEstatisticasDOM(verificadas, averiguar, usuarios) {
     if (el('stats-usuarios'))    el('stats-usuarios').innerHTML    = `<i class="fas fa-users"></i> ${usuarios} usuários`;
 }
 
-// ─── Helpers públicos ─────────────────────────────────────────────────────────
+// ─── API pública para publicacao.js injetar notícia demo ──────────────────────
+export function adicionarNoticiaDemoLocal(noticia) {
+    noticias.unshift(noticia);
+    renderizarNoticias();
+    atualizarEstatisticasLocal();
+}
+
 export function getNoticiaById(id) { return noticias.find(n => n.id === id); }
 
 window.addEventListener('noticiaPublicada', () => {
-    limparCache();
-    carregarNoticias(true);
+    if (!isDemoMode) { limparCache(); carregarNoticias(true); }
 });

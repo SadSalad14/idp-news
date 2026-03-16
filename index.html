@@ -29,10 +29,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <!-- Caminhos relativos → funcionam tanto em domínio raiz quanto em /repo-name/ (GitHub Pages) -->
-  <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="shortcut icon" href="favicon.ico" />
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="favicon_io/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="favicon_io/favicon.svg" />
+  <link rel="shortcut icon" href="favicon_io/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-title" content="idp.news" />
   <link rel="manifest" href="site.webmanifest" />
 
@@ -85,6 +85,20 @@
       </div>
     </div>
   </header>
+
+  <!-- ═════════════════════ BANNER MODO DEMO ══════════════════════════════ -->
+  <!-- Exibido automaticamente pelo main.js quando isDemoMode = true         -->
+  <div id="banner-demo" class="banner-demo" style="display:none" role="status" aria-live="polite">
+    <i class="fas fa-flask"></i>
+    <span>
+      <strong>Modo demonstração</strong> — prévia do idp.news com dados de exemplo.
+      Publicações, votos e logins ficam apenas nesta sessão.
+    </span>
+    <a href="https://github.com/SEU_USUARIO/idp-news" target="_blank" rel="noopener noreferrer">
+      <i class="fab fa-github"></i> Ver no GitHub
+    </a>
+    <button class="banner-demo-fechar" aria-label="Fechar aviso">&times;</button>
+  </div>
 
   <!-- ══════════════════════════ BANNER SUPERIOR (AdSense) ═════════════════ -->
   <!--
@@ -142,6 +156,16 @@
     <div class="modal-content">
       <button id="btn-fechar-modal" class="close">&times;</button>
       <h2><i class="fas fa-plus-circle"></i> Publicar Nova Notícia</h2>
+
+      <!-- Aviso visível apenas no modo demo — controlado pelo publicacao.js -->
+      <div class="aviso-demo-publicacao" style="display:none">
+        <i class="fas fa-flask"></i>
+        <div>
+          <strong>Modo demonstração</strong>
+          <small>Sua notícia aparecerá no feed, mas será perdida ao recarregar a página. No site real ela seria salva e ficaria visível para todos.</small>
+        </div>
+      </div>
+
       <form id="form-publicar">
         <div class="form-group">
           <label for="titulo"><i class="fas fa-heading"></i> Título *</label>

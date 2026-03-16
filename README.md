@@ -13,7 +13,7 @@
 
 O **idp.news** é uma SPA (Single Page Application) que permite à comunidade publicar e verificar a veracidade de notícias locais por meio de votação ponderada. O sistema atribui peso maior aos votos de usuários geograficamente próximos ao fato reportado.
 
-Este projeto nasceu como uma plataforma independente de jornalismo comunitário e está em constante evolução.
+Este projeto nasceu como uma plataforma independente de jornalismo comunitário e está atualmente em produção descontinuada.
 
 ---
 
@@ -34,7 +34,7 @@ Este projeto nasceu como uma plataforma independente de jornalismo comunitário 
 | PWA com Service Worker e modo offline | 🔧 Parcial |
 | Sistema de comentários | 🗓️ Planejado |
 | Painel de moderação | 🗓️ Planejado |
-| Google AdSense (slots preparados) | 🗓️ Aguardando aprovação |
+| Google AdSense (slots preparados) | 🗓️ Planejado |
 
 ---
 
@@ -83,6 +83,7 @@ Publicação → status: "averiguar"
     ↓ pontuação ≥ 50 → status: "verificada"
     ↓ pontuação ≤ -30 → status: "removida"
     ↓ 5 reports → removida automaticamente
+    (obs: por enquanto adaptado para uma pequena quantidade de público)
 ```
 
 ### Otimizações Firebase (Plano Gratuito)
