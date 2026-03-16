@@ -1,9 +1,13 @@
 // js/config.js
-// Configuração central da aplicação.
-// As chaves do Firebase são públicas por design — a segurança vem das Firestore Rules.
+// As chaves do Firebase são públicas por design — segurança vem das Firestore Rules.
 // Nunca commite: Firebase Admin SDK, reCAPTCHA secret key, chaves de pagamento.
 
 window.APP_CONFIG = {
+
+    // true  = modo demo (notícias de exemplo, registro fictício) — use no GitHub Pages
+    // false = modo real com Firebase
+    forceDemo: true,
+
     firebase: {
         apiKey:            "AIzaSyCB0LutrExC6td1nIJBuiOQlN-30TdnrO8",
         authDomain:        "independentnews-483ac.firebaseapp.com",
@@ -14,7 +18,7 @@ window.APP_CONFIG = {
         measurementId:     "G-KBVRETFES7"
     },
 
-    // Gere em: https://www.google.com/recaptcha/admin (tipo v2 "Não sou um robô")
+    // Gere em: https://www.google.com/recaptcha/admin (v2 "Não sou um robô")
     recaptchaSiteKey: "INSIRA_SUA_SITEKEY_AQUI",
 
     // Preencha quando a conta AdSense for aprovada

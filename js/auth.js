@@ -10,7 +10,15 @@ let recaptchaWidgetIds = { login: null, register: null };
 
 export function initAuth() {
     if (isDemoMode) {
-        updateUserUI(null);
+        // Verifica se já tem um usuário demo salvo nesta sessão
+        const savedUser = sessionStorage.getItem('demo_user');
+        if (savedUser) {
+            const user = JSON.parse(savedUser);
+            setCurrentUserState(user);
+            updateUserUI(user);
+        } else {
+            updateUserUI(null);
+        }
         setupAuthButtons();
         return;
     }
@@ -28,7 +36,6 @@ export function initAuth() {
     setupAuthButtons();
     loadRecaptchaScript();
 
-    // Logout via delegação (botão é criado dinamicamente)
     document.addEventListener('click', async (e) => {
         if (e.target.closest('.logout-btn')) await logout();
     });
@@ -87,55 +94,17 @@ function setupAuthButtons() {
 export function showAuthModal(defaultTab = 'login') {
     document.getElementById('modal-auth')?.remove();
 
-    const avisoDemoHTML = isDemoMode ? `
-        <div class="aviso-demo-modal">
-            <i class="fas fa-flask"></i>
-            <span>Modo demonstração — login e cadastro não funcionam aqui.<br>
-            <small>No site real esta tela conecta ao Firebase.</small></span>
-        </div>` : '';
+    // No modo demo mostra formulário simplificado (só nome)
+    const conteudoModal = isDemoMode
+        ? _htmlModalDemo(defaultTab)
+        : _htmlModalReal(defaultTab);
 
     document.body.insertAdjacentHTML('beforeend', `
     <div id="modal-auth" class="modal">
         <div class="modal-content modal-sm">
             <button class="close-auth close">&times;</button>
             <h2><i class="fas fa-user-circle"></i> Acesso</h2>
-            ${avisoDemoHTML}
-            <div class="login-tabs">
-                <button class="login-tab ${defaultTab === 'login'    ? 'active' : ''}" data-tab="login">Entrar</button>
-                <button class="login-tab ${defaultTab === 'register' ? 'active' : ''}" data-tab="register">Registrar</button>
-            </div>
-            <form id="form-login" class="login-form ${defaultTab === 'login' ? 'active' : ''}" novalidate>
-                <div class="form-group">
-                    <label for="auth-email"><i class="fas fa-envelope"></i> E-mail:</label>
-                    <input type="email" id="auth-email" required autocomplete="email" ${isDemoMode ? 'disabled placeholder="Desabilitado no modo demo"' : ''}>
-                </div>
-                <div class="form-group">
-                    <label for="auth-password"><i class="fas fa-lock"></i> Senha:</label>
-                    <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" ${isDemoMode ? 'disabled' : ''}>
-                </div>
-                ${!isDemoMode ? `<div class="form-group"><div id="recaptcha-login-widget"></div></div>` : ''}
-                <button type="submit" class="btn-enviar" ${isDemoMode ? 'disabled' : ''}>
-                    <i class="fas fa-sign-in-alt"></i> Entrar
-                </button>
-            </form>
-            <form id="form-register" class="login-form ${defaultTab === 'register' ? 'active' : ''}" novalidate>
-                <div class="form-group">
-                    <label for="reg-name"><i class="fas fa-user"></i> Nome:</label>
-                    <input type="text" id="reg-name" required minlength="3" autocomplete="name" ${isDemoMode ? 'disabled placeholder="Desabilitado no modo demo"' : ''}>
-                </div>
-                <div class="form-group">
-                    <label for="reg-email"><i class="fas fa-envelope"></i> E-mail:</label>
-                    <input type="email" id="reg-email" required autocomplete="email" ${isDemoMode ? 'disabled' : ''}>
-                </div>
-                <div class="form-group">
-                    <label for="reg-password"><i class="fas fa-lock"></i> Senha (mín. 6 caracteres):</label>
-                    <input type="password" id="reg-password" minlength="6" required autocomplete="new-password" ${isDemoMode ? 'disabled' : ''}>
-                </div>
-                ${!isDemoMode ? `<div class="form-group"><div id="recaptcha-register-widget"></div></div>` : ''}
-                <button type="submit" class="btn-enviar" ${isDemoMode ? 'disabled' : ''}>
-                    <i class="fas fa-user-plus"></i> Criar conta
-                </button>
-            </form>
+            ${conteudoModal}
         </div>
     </div>`);
 
@@ -143,6 +112,83 @@ export function showAuthModal(defaultTab = 'login') {
     setupModalEvents(defaultTab);
     currentAuthModal.style.display = 'block';
     if (!isDemoMode) setTimeout(() => renderRecaptchaWidgets(defaultTab), 350);
+}
+
+function _htmlModalDemo(defaultTab) {
+    return `
+        <div class="aviso-demo-modal">
+            <i class="fas fa-flask"></i>
+            <span>Modo demonstração — crie um perfil fictício para testar as funcionalidades.<br>
+            <small>Nenhum dado é salvo. Tudo é perdido ao fechar ou recarregar a página.</small></span>
+        </div>
+        <div class="login-tabs">
+            <button class="login-tab ${defaultTab === 'login'    ? 'active' : ''}" data-tab="login">Entrar</button>
+            <button class="login-tab ${defaultTab === 'register' ? 'active' : ''}" data-tab="register">Criar perfil</button>
+        </div>
+        <form id="form-login" class="login-form ${defaultTab === 'login' ? 'active' : ''}" novalidate>
+            <div class="form-group">
+                <label for="demo-login-nome"><i class="fas fa-user"></i> Seu nome (demo):</label>
+                <input type="text" id="demo-login-nome" required minlength="2" placeholder="Ex: João Silva" autocomplete="off">
+            </div>
+            <p style="font-size:12px;color:var(--texto-secundario);margin-top:-10px;margin-bottom:16px">
+                Use qualquer nome — não é necessário cadastro real.
+            </p>
+            <button type="submit" class="btn-enviar">
+                <i class="fas fa-sign-in-alt"></i> Entrar como visitante
+            </button>
+        </form>
+        <form id="form-register" class="login-form ${defaultTab === 'register' ? 'active' : ''}" novalidate>
+            <div class="form-group">
+                <label for="demo-reg-nome"><i class="fas fa-user"></i> Escolha um nome:</label>
+                <input type="text" id="demo-reg-nome" required minlength="2" placeholder="Ex: Maria Santos" autocomplete="off">
+            </div>
+            <p style="font-size:12px;color:var(--texto-secundario);margin-top:-10px;margin-bottom:16px">
+                Perfil de demonstração — dura apenas nesta sessão.
+            </p>
+            <button type="submit" class="btn-enviar">
+                <i class="fas fa-user-plus"></i> Criar perfil demo
+            </button>
+        </form>`;
+}
+
+function _htmlModalReal(defaultTab) {
+    return `
+        <div class="login-tabs">
+            <button class="login-tab ${defaultTab === 'login'    ? 'active' : ''}" data-tab="login">Entrar</button>
+            <button class="login-tab ${defaultTab === 'register' ? 'active' : ''}" data-tab="register">Registrar</button>
+        </div>
+        <form id="form-login" class="login-form ${defaultTab === 'login' ? 'active' : ''}" novalidate>
+            <div class="form-group">
+                <label for="auth-email"><i class="fas fa-envelope"></i> E-mail:</label>
+                <input type="email" id="auth-email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="auth-password"><i class="fas fa-lock"></i> Senha:</label>
+                <input type="password" id="auth-password" required minlength="6" autocomplete="current-password">
+            </div>
+            <div class="form-group"><div id="recaptcha-login-widget"></div></div>
+            <button type="submit" class="btn-enviar">
+                <i class="fas fa-sign-in-alt"></i> Entrar
+            </button>
+        </form>
+        <form id="form-register" class="login-form ${defaultTab === 'register' ? 'active' : ''}" novalidate>
+            <div class="form-group">
+                <label for="reg-name"><i class="fas fa-user"></i> Nome:</label>
+                <input type="text" id="reg-name" required minlength="3" autocomplete="name">
+            </div>
+            <div class="form-group">
+                <label for="reg-email"><i class="fas fa-envelope"></i> E-mail:</label>
+                <input type="email" id="reg-email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="reg-password"><i class="fas fa-lock"></i> Senha (mín. 6 caracteres):</label>
+                <input type="password" id="reg-password" minlength="6" required autocomplete="new-password">
+            </div>
+            <div class="form-group"><div id="recaptcha-register-widget"></div></div>
+            <button type="submit" class="btn-enviar">
+                <i class="fas fa-user-plus"></i> Criar conta
+            </button>
+        </form>`;
 }
 
 function setupModalEvents(defaultTab) {
@@ -155,11 +201,42 @@ function setupModalEvents(defaultTab) {
             currentAuthModal.querySelectorAll('.login-tab, .login-form').forEach(el => el.classList.remove('active'));
             tab.classList.add('active');
             currentAuthModal.querySelector(`#form-${name}`).classList.add('active');
-            renderRecaptchaWidgets(name);
+            if (!isDemoMode) renderRecaptchaWidgets(name);
         });
     });
-    currentAuthModal.querySelector('#form-login').addEventListener('submit',   (e) => { e.preventDefault(); handleLogin(); });
-    currentAuthModal.querySelector('#form-register').addEventListener('submit', (e) => { e.preventDefault(); handleRegister(); });
+
+    if (isDemoMode) {
+        // Login e registro demo usam o mesmo handler — só precisam de um nome
+        currentAuthModal.querySelector('#form-login').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nome = currentAuthModal.querySelector('#demo-login-nome')?.value.trim();
+            if (!nome || nome.length < 2) { showToast('Digite um nome com pelo menos 2 caracteres.', 'error'); return; }
+            entrarModoDemo(nome);
+        });
+        currentAuthModal.querySelector('#form-register').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nome = currentAuthModal.querySelector('#demo-reg-nome')?.value.trim();
+            if (!nome || nome.length < 2) { showToast('Escolha um nome com pelo menos 2 caracteres.', 'error'); return; }
+            entrarModoDemo(nome);
+        });
+    } else {
+        currentAuthModal.querySelector('#form-login').addEventListener('submit',   (e) => { e.preventDefault(); handleLogin(); });
+        currentAuthModal.querySelector('#form-register').addEventListener('submit', (e) => { e.preventDefault(); handleRegister(); });
+    }
+}
+
+function entrarModoDemo(nome) {
+    const demoUser = {
+        uid:         `demo-${Date.now()}`,
+        displayName: nome,
+        email:       null,
+        isDemo:      true
+    };
+    sessionStorage.setItem('demo_user', JSON.stringify(demoUser));
+    setCurrentUserState(demoUser);
+    updateUserUI(demoUser);
+    showToast(`Bem-vindo, ${nome}! (modo demo)`, 'success');
+    closeAuthModal();
 }
 
 function closeAuthModal() {
@@ -241,6 +318,13 @@ async function loadUserData(user) {
 }
 
 export async function logout() {
+    if (isDemoMode) {
+        sessionStorage.removeItem('demo_user');
+        setCurrentUserState(null);
+        updateUserUI(null);
+        showToast('Você saiu do perfil demo.', 'info');
+        return;
+    }
     try {
         await auth.signOut();
         showToast('Você saiu da sua conta.', 'info');
@@ -267,12 +351,15 @@ function handleAuthError(error) {
 }
 
 export function getCurrentUser() {
-    if (isDemoMode) return null;
+    if (isDemoMode) {
+        const saved = sessionStorage.getItem('demo_user');
+        return saved ? JSON.parse(saved) : null;
+    }
     return auth?.currentUser ?? null;
 }
 
 window.onRecaptchaLoaded = function() {
-    if (currentAuthModal) {
+    if (currentAuthModal && !isDemoMode) {
         const tab = currentAuthModal.querySelector('.login-tab.active')?.dataset.tab || 'login';
         renderRecaptchaWidgets(tab);
     }
