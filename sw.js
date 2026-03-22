@@ -1,5 +1,10 @@
-// sw.js - Service Worker funcional e otimizado
-const CACHE_NAME = 'idpnews-v2.0';
+// sw.js
+// IMPORTANTE: sempre que fizer deploy de arquivos novos, mude o número da versão.
+// Isso força todos os visitantes a receberem os arquivos atualizados automaticamente.
+const CACHE_NAME = 'idpnews-v3.0';
+
+// Arquivos que ficam no cache para funcionar offline
+// config.js está FORA desta lista de propósito — ele nunca deve ser cacheado
 const urlsToCache = [
     './',
     './index.html',
@@ -7,160 +12,82 @@ const urlsToCache = [
     './js/main.js',
     './js/auth.js',
     './js/firebase.js',
+    './js/state.js',
     './js/geo.js',
     './js/noticias.js',
     './js/publicacao.js',
-    './js/ui.js',
     './js/votacao.js',
+    './js/ui.js',
+    './js/demo-data.js',
     './js/data.json',
     './favicon_io/android-chrome-192x192.png',
     './favicon_io/android-chrome-512x512.png'
 ];
 
-// Instalação SIMPLIFICADA
+// Arquivos que NUNCA devem ser cacheados — sempre buscados da rede
+const nuncaCachear = [
+    'config.js'
+];
+
 self.addEventListener('install', event => {
-    console.log('[SW] Instalando...');
-    
+    // Ativa imediatamente sem esperar a aba ser fechada
+    self.skipWaiting();
+
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('[SW] Cache aberto. Adicionando recursos...');
-                return cache.addAll(urlsToCache)
-                    .then(() => {
-                        console.log('[SW] Todos recursos cacheados');
-                    })
-                    .catch(error => {
-                        console.error('[SW] Erro ao cachear recursos:', error);
-                    });
-            })
-            .then(() => {
-                console.log('[SW] Skip waiting');
-                return self.skipWaiting();
-            })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
     );
 });
 
-// Ativação
 self.addEventListener('activate', event => {
-    console.log('[SW] Ativando...');
-    
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('[SW] Removendo cache antigo:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => {
-            console.log('[SW] Claiming clients');
-            return self.clients.claim();
-        })
+        caches.keys()
+            .then(nomes => Promise.all(
+                nomes
+                    .filter(nome => nome !== CACHE_NAME)
+                    .map(nome => caches.delete(nome))
+            ))
+            .then(() => self.clients.claim())
     );
 });
 
-// Intercepta requisições
 self.addEventListener('fetch', event => {
-    // Ignora requisições não GET ou de outros protocolos
     if (event.request.method !== 'GET') return;
     if (event.request.url.startsWith('chrome-extension://')) return;
-    
-    // Para requisições dinâmicas (Firebase), sempre busca na rede
-    if (event.request.url.includes('firestore.googleapis.com') ||
-        event.request.url.includes('firebasestorage.googleapis.com')) {
-        event.respondWith(networkFirst(event.request));
+
+    const url = event.request.url;
+
+    // config.js e recursos externos (Firebase, CDN) — sempre da rede
+    const deveBuscarDaRede =
+        nuncaCachear.some(arquivo => url.includes(arquivo)) ||
+        url.includes('firestore.googleapis.com') ||
+        url.includes('firebasestorage.googleapis.com') ||
+        url.includes('googleapis.com') ||
+        url.includes('gstatic.com') ||
+        url.includes('cdnjs.cloudflare.com') ||
+        url.includes('google.com/recaptcha');
+
+    if (deveBuscarDaRede) {
+        event.respondWith(fetch(event.request));
         return;
     }
-    
-    // Para recursos estáticos, usa cache primeiro
+
+    // Recursos locais: cache primeiro, atualiza em background
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Cache hit - retorna do cache
-                if (response) {
-                    console.log('[SW] Cache hit:', event.request.url);
-                    return response;
-                }
-                
-                // Cache miss - busca na rede
-                console.log('[SW] Cache miss, buscando na rede:', event.request.url);
-                
-                return fetch(event.request.clone())
-                    .then(response => {
-                        // Verifica se a resposta é válida
-                        if (!response || response.status !== 200 || response.type !== 'basic') {
-                            return response;
-                        }
-                        
-                        // Clona a resposta para cache
-                        const responseToCache = response.clone();
-                        
-                        // Adiciona ao cache para uso futuro
-                        caches.open(CACHE_NAME)
-                            .then(cache => {
-                                cache.put(event.request, responseToCache);
-                            });
-                        
-                        return response;
-                    })
-                    .catch(error => {
-                        console.error('[SW] Erro no fetch:', error);
-                        
-                        // Se for uma navegação e estiver offline, retorna página offline
-                        if (event.request.mode === 'navigate') {
-                            return caches.match('./index.html');
-                        }
-                        
-                        // Para outros recursos, pode retornar uma resposta genérica
-                        return new Response('Offline', {
-                            status: 503,
-                            statusText: 'Service Unavailable',
-                            headers: new Headers({
-                                'Content-Type': 'text/plain'
-                            })
-                        });
+        caches.match(event.request).then(cached => {
+            const fetchPromise = fetch(event.request).then(response => {
+                if (response && response.status === 200 && response.type === 'basic') {
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, response.clone());
                     });
-            })
+                }
+                return response;
+            }).catch(() => cached);
+
+            return cached || fetchPromise;
+        })
     );
 });
 
-// Estratégia: Network First (para dados dinâmicos)
-function networkFirst(request) {
-    return fetch(request)
-        .then(response => {
-            // Atualiza o cache com a nova resposta
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME)
-                .then(cache => {
-                    cache.put(request, responseClone);
-                });
-            return response;
-        })
-        .catch(() => {
-            // Se offline, tenta do cache
-            return caches.match(request);
-        });
-}
-
-// Background Sync (opcional)
-self.addEventListener('sync', event => {
-    if (event.tag === 'sync-votos') {
-        console.log('[SW] Sincronizando votos...');
-        event.waitUntil(syncVotos());
-    }
-});
-
-async function syncVotos() {
-    // Para implementar quando tiver dados offline
-    console.log('[SW] Sincronização de dados...');
-    return Promise.resolve();
-}
-
-// Mensagem para forçar atualização
 self.addEventListener('message', event => {
-    if (event.data === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
+    if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
